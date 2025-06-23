@@ -1,9 +1,106 @@
 /* src/components/ChatInterface.module.css */
 .chatContainer {
-  /* Max height and overflow were previously inline, can be moved here or kept based on preference */
+  display: flex;
+  flex-direction: column;
 }
 
+.chatControls {
+  display: flex;
+  justify-content: space-between; /* Puts buttons on opposite ends */
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.clearButton, .managePromptsButton {
+  /* Basic button styling, can be enhanced */
+  padding: 6px 12px;
+  font-size: 0.9em;
+  /* Uses global button styles potentially, or define more here */
+}
+
+.managePromptsButton {
+  /* Specific styles if needed to differentiate from clear button */
+}
+
+.promptManager {
+  border: 1px solid var(--border-color, #ccc);
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: var(--border-radius, 4px);
+  background-color: #f9f9f9;
+}
+
+.promptManager h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.savePromptForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.promptNameInput, .promptTextInput {
+  padding: 8px;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: var(--border-radius-sm, 3px);
+  width: 100%; /* Take full width within form */
+  box-sizing: border-box; /* Ensure padding and border don't expand beyond 100% */
+}
+
+.promptTextInput {
+  min-height: 60px; /* Provide some decent space for prompt text */
+  resize: vertical; /* Allow vertical resize */
+}
+
+.savePromptButton {
+  align-self: flex-start; /* Don't stretch full width */
+   /* Uses global button styles potentially, or define more here */
+}
+
+
+.savedPromptsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.savedPromptItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 5px;
+  border-bottom: 1px solid var(--border-color-light, #eee);
+}
+
+.savedPromptItem:last-child {
+  border-bottom: none;
+}
+
+.promptName {
+  cursor: pointer;
+  flex-grow: 1;
+  margin-right: 10px;
+}
+
+.promptName:hover {
+  color: var(--primary-color, #007bff);
+}
+
+.deletePromptButton {
+  background: none;
+  border: none;
+  color: var(--error-color, #dc3545);
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 0 5px;
+}
+
+
 .chatHistory {
+  flex-grow: 1; /* Allow chat history to take available space */
   max-height: 400px; /* Or a different value */
   overflow-y: auto;
   border: 1px solid var(--card-border-color, #dee2e6); /* Changed to --card-border-color for consistency */
@@ -48,6 +145,29 @@
 .messageText {
  margin: 0; /* Remove default paragraph margin */
 }
+
+.messageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.copyButton {
+  background: none;
+  border: 1px solid var(--secondary-text-color, #6c757d);
+  color: var(--secondary-text-color, #6c757d);
+  padding: 2px 6px;
+  font-size: 0.75em;
+  border-radius: var(--border-radius-sm, 3px);
+  cursor: pointer;
+  margin-left: 10px; /* Space from the label */
+}
+
+.copyButton:hover {
+  background-color: var(--border-color, #e9ecef); /* Use a light hover effect */
+}
+
 
 .chatForm {
   display: flex;

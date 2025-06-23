@@ -6,6 +6,7 @@ import {
   NEO4J_USERNAME,
   NEO4J_PASSWORD,
   GEMINI_API_KEY,
+  DEFAULT_CHAT_MODEL_NAME // Import new config for chat model name
 } from '../config';
 import {
   ChatPromptTemplate,
@@ -34,17 +35,28 @@ try {
   driver = undefined; // Ensure driver is undefined if init fails
 }
 
-// Initialize LLM
-if (GEMINI_API_KEY) {
-  llm = new ChatGoogleGenerativeAI({
-    apiKey: GEMINI_API_KEY,
-    modelName: 'gemini-2.0-flash',
-    temperature: 0.2, // Slightly lower temp for more deterministic graph structure generation
-  });
-  console.log('ChatGoogleGenerativeAI (gemini-2.0-flash) initialized for graph-builder.');
-} else {
-  console.warn('GEMINI_API_KEY is not set in graph-builder. LLM-dependent graph operations will be unavailable.');
+// Initialize LLM for graph operations
+function initializeGraphLlm(): ChatGoogleGenerativeAI | undefined {
+  if (GEMINI_API_KEY) {
+    try {
+      const model = new ChatGoogleGenerativeAI({
+        apiKey: GEMINI_API_KEY,
+        modelName: DEFAULT_CHAT_MODEL_NAME, // Use configured model
+        temperature: 0.2, // Slightly lower temp for more deterministic graph structure generation
+      });
+      console.log(`ChatGoogleGenerativeAI initialized with model ${DEFAULT_CHAT_MODEL_NAME} for graph-builder.ts`);
+      return model;
+    } catch (error) {
+      console.error(`Failed to initialize ChatGoogleGenerativeAI for graph-builder with model ${DEFAULT_CHAT_MODEL_NAME}:`, error);
+      return undefined;
+    }
+  } else {
+    console.warn('GEMINI_API_KEY is not set in graph-builder. LLM-dependent graph operations will be unavailable.');
+    return undefined;
+  }
 }
+
+llm = initializeGraphLlm();
 
 function getDriverInstance(): Driver {
   if (!driver) {
@@ -59,18 +71,13 @@ function getDriverInstance(): Driver {
   return driver;
 }
 
-function getLlmInstance(): ChatGoogleGenerativeAI {
+function getLlmInstance(): ChatGoogleGenerativeAI { // Renamed from getInitializedLlm for consistency
   if (!llm) {
-     if (GEMINI_API_KEY) {
-        llm = new ChatGoogleGenerativeAI({
-            apiKey: GEMINI_API_KEY,
-            modelName: 'gemini-2.0-flash',
-            temperature: 0.2,
-        });
-        console.log('Re-initialized ChatGoogleGenerativeAI in graph-builder.');
-        return llm;
+    console.log("Attempting to re-initialize LLM in graph-builder's getLlmInstance...");
+    llm = initializeGraphLlm();
+    if (!llm) {
+      throw new Error('LLM not initialized in graph-builder and re-initialization failed. GEMINI_API_KEY might be missing or chat model name is invalid.');
     }
-    throw new Error('LLM not initialized in graph-builder. GEMINI_API_KEY is missing.');
   }
   return llm;
 }
@@ -97,6 +104,424 @@ export async function executeCypherQuery(query: string, params?: Record<string, 
 export interface GraphElements {
   nodes: Array<{ id: string; type: string; properties: Record<string, any> }>; // id should be unique concept identifier from text
   relationships: Array<{ sourceId: string; targetId: string; type: string; properties?: Record<string, any> }>;
+}
+
+// Frontend-compatible GraphData structure
+export interface FeGraphNode {
+  id: string; // Neo4j elementId or internal ID
+  name: string; // Typically from a 'name' or 'title' property
+  labels?: string[]; // Neo4j labels
+  properties?: Record<string, any>; // Other properties
+  color?: string; // Optional: for frontend styling
+  val?: number; // Optional: for node sizing in frontend
+}
+
+export interface FeGraphLink {
+  source: string; // ID of source FeGraphNode
+  target: string; // ID of target FeGraphNode
+  type?: string; // Relationship type
+  properties?: Record<string, any>; // Relationship properties
+  // id?: string; // Optional: if links need unique IDs for frontend
+}
+
+export interface FeGraphData {
+  nodes: FeGraphNode[];
+  links: FeGraphLink[];
+}
+
+// Helper to transform Neo4j records to FeGraphData
+// This is a generic transformer; specific queries might need tailored transformers.
+function recordsToFeGraphData(records: any[]): FeGraphData {
+  const nodes = new Map<string, FeGraphNode>();
+  const links: FeGraphLink[] = [];
+
+  records.forEach(record => {
+    // Try to find 'n', 'm', 'node', 'sourceNode', 'targetNode' for nodes
+    // and 'r', 'rel', 'relationship' for relationships
+    record.keys.forEach((key: string) => {
+      const element = record.get(key);
+      if (element && typeof element === 'object') {
+        if (element.labels && element.identity) { // Likely a Neo4j Node
+          const nodeId = element.properties.id || element.identity.toString(); // Prefer custom 'id' if present
+          if (!nodes.has(nodeId)) {
+            nodes.set(nodeId, {
+              id: nodeId,
+              name: element.properties.name || element.properties.title || nodeId, // Fallback to id if no name/title
+              labels: element.labels,
+              properties: element.properties,
+            });
+          }
+        } else if (element.type && element.start && element.end && element.identity) { // Likely a Neo4j Relationship
+          // Ensure source and target nodes are processed or exist
+          // This simple version assumes nodes involved in relationships are also returned by the query separately
+          // or that their IDs are sufficient.
+          const sourceId = element.properties.sourceId || element.start.toString(); // Assuming direct IDs or start/end node identity
+          const targetId = element.properties.targetId || element.end.toString();
+
+          // Check if source and target nodes are in our map from the same query, otherwise this link might be dangling
+          // or rely on frontend already having these nodes. For simplicity, we add the link.
+          // A more robust solution ensures nodes are added first or queries return them.
+
+          links.push({
+            source: sourceId,
+            target: targetId,
+            type: element.type,
+            properties: element.properties,
+            // id: element.identity.toString(), // Optional: if links need unique IDs
+          });
+        }
+      }
+    });
+  });
+  return { nodes: Array.from(nodes.values()), links };
+}
+
+// Chat Message type for frontend compatibility (from ChatInterface.tsx)
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'ai';
+  text: string;
+  // timestamp will be generated by Neo4j or server
+}
+
+/**
+ * Saves a chat message to Neo4j, linking it to a session and maintaining order.
+ * @param sessionId The unique ID for the chat session.
+ * @param message The chat message object (id, type, text).
+ */
+export async function saveChatMessage(sessionId: string, message: ChatMessage): Promise<void> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    await session.writeTransaction(async tx => {
+      // Create/Merge Session Node
+      await tx.run(
+        `MERGE (s:ChatSession {sessionId: $sessionId})
+         ON CREATE SET s.createdAt = datetime()`,
+        { sessionId }
+      );
+
+      // Create Message Node
+      // The message.id from frontend is client-side, we can use it or generate a new one.
+      // For simplicity, using it. Add timestamp server-side.
+      const messageProperties = {
+        messageId: message.id, // Use client-generated ID for now
+        type: message.type,
+        text: message.text,
+        timestamp: new Date().toISOString(), // Server-side timestamp
+      };
+      await tx.run(
+        `MATCH (s:ChatSession {sessionId: $sessionId})
+         CREATE (msg:ChatMessage $props)
+         CREATE (s)-[:HAS_MESSAGE]->(msg)
+         WITH s, msg
+         OPTIONAL MATCH (s)-[:HAS_MESSAGE]->(prevMsg:ChatMessage) WHERE prevMsg <> msg AND NOT (prevMsg)-[:NEXT_MESSAGE]->()
+         FOREACH (ignore IN CASE WHEN prevMsg IS NOT NULL THEN [1] ELSE [] END |
+           CREATE (prevMsg)-[:NEXT_MESSAGE]->(msg)
+         )`,
+        { sessionId, props: messageProperties }
+      );
+      // The FOREACH and OPTIONAL MATCH part is a bit complex for linking to the *absolute* last message.
+      // A simpler model: Link to session, order by timestamp when retrieving.
+      // Or, keep a LAST_MESSAGE relationship from Session to the latest Message.
+
+      // Simpler model for linking: just create the message and link to session.
+      // Order by timestamp on retrieval.
+      // Let's refine the query to be simpler and more robust for linking.
+    });
+
+    // Refined transaction for saving message and linking to last message
+    await session.writeTransaction(async tx => {
+        // Merge session
+        await tx.run(
+            `MERGE (s:ChatSession {sessionId: $sessionId}) ON CREATE SET s.createdAt = datetime()`,
+            { sessionId }
+        );
+
+        // Create the new message
+        const messageResult = await tx.run(
+            `CREATE (msg:ChatMessage {
+                messageId: $messageId,
+                type: $type,
+                text: $text,
+                timestamp: datetime()
+            }) RETURN id(msg) AS neo4jId, msg`,
+            { messageId: message.id, type: message.type, text: message.text }
+        );
+        const newMessageNeo4jId = messageResult.records[0].get('neo4jId');
+        const newMessageNode = messageResult.records[0].get('msg');
+
+
+        // Link message to session
+        await tx.run(
+            `MATCH (s:ChatSession {sessionId: $sessionId})
+             MATCH (msg:ChatMessage) WHERE id(msg) = $newMessageNeo4jId
+             CREATE (s)-[:HAS_MESSAGE]->(msg)`,
+            { sessionId, newMessageNeo4jId }
+        );
+
+        // Find previous last message and link it to new message
+        const lastMessageResult = await tx.run(
+            `MATCH (s:ChatSession {sessionId: $sessionId})-[:HAS_MESSAGE]->(m:ChatMessage)
+             WHERE id(m) <> $newMessageNeo4jId AND NOT (m)-[:NEXT_MESSAGE]->(:ChatMessage)
+             RETURN id(m) AS lastMessageNeo4jId LIMIT 1`,
+            { sessionId, newMessageNeo4jId }
+        );
+
+        if (lastMessageResult.records.length > 0) {
+            const lastMessageNeo4jId = lastMessageResult.records[0].get('lastMessageNeo4jId');
+            await tx.run(
+                `MATCH (prev:ChatMessage), (next:ChatMessage)
+                 WHERE id(prev) = $lastMessageNeo4jId AND id(next) = $newMessageNeo4jId
+                 CREATE (prev)-[:NEXT_MESSAGE]->(next)`,
+                { lastMessageNeo4jId, newMessageNeo4jId }
+            );
+        }
+    });
+
+
+    console.log(`Message ${message.id} saved for session ${sessionId}.`);
+  } catch (error: any) {
+    console.error(`Error saving chat message for session ${sessionId}:`, error.message, error.stack);
+    throw new Error(`Failed to save chat message: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Retrieves chat history for a given session ID, ordered by timestamp.
+ * @param sessionId The unique ID for the chat session.
+ * @returns An array of ChatMessage objects.
+ */
+export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    const result = await session.readTransaction(async tx =>
+      tx.run(
+        `MATCH (s:ChatSession {sessionId: $sessionId})-[:HAS_MESSAGE]->(msg:ChatMessage)
+         RETURN msg.messageId AS id, msg.type AS type, msg.text AS text, msg.timestamp AS timestamp
+         ORDER BY msg.timestamp ASC`, // Order by timestamp
+        { sessionId }
+      )
+    );
+
+    return result.records.map(record => ({
+      id: record.get('id'),
+      type: record.get('type') as 'user' | 'ai',
+      text: record.get('text'),
+      // timestamp: record.get('timestamp').toString() // Optionally return timestamp if needed by frontend
+    }));
+  } catch (error: any) {
+    console.error(`Error retrieving chat history for session ${sessionId}:`, error.message, error.stack);
+    throw new Error(`Failed to retrieve chat history: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Deletes all chat messages and the session node for a given session ID.
+ * @param sessionId The unique ID for the chat session.
+ */
+export async function deleteChatHistory(sessionId: string): Promise<void> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    await session.writeTransaction(async tx => {
+      // First, delete all messages associated with the session and their :NEXT_MESSAGE relationships
+      // It's important to delete relationships when deleting nodes to avoid dangling relationships.
+      // The messages themselves are linked to the session via :HAS_MESSAGE.
+      // :NEXT_MESSAGE relationships are between ChatMessage nodes.
+      await tx.run(
+        `MATCH (s:ChatSession {sessionId: $sessionId})-[hr:HAS_MESSAGE]->(msg:ChatMessage)
+         OPTIONAL MATCH (msg)-[nr:NEXT_MESSAGE]-()
+         DETACH DELETE msg, nr`, // DETACH DELETE removes node and its relationships
+        { sessionId }
+      );
+      // Then, delete the session node itself
+      await tx.run(
+        `MATCH (s:ChatSession {sessionId: $sessionId})
+         DETACH DELETE s`, // Detach just in case, though :HAS_MESSAGE should be gone
+        { sessionId }
+      );
+    });
+    console.log(`Chat history for session ${sessionId} deleted successfully.`);
+  } catch (error: any) {
+    console.error(`Error deleting chat history for session ${sessionId}:`, error.message, error.stack);
+    throw new Error(`Failed to delete chat history: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+
+// Saved Prompt type
+export interface SavedPrompt {
+  promptId: string;
+  name: string;
+  text: string;
+  createdAt: string; // ISO string date
+}
+
+/**
+ * Saves a user-defined prompt to Neo4j.
+ * @param name The name of the prompt.
+ * @param text The content of the prompt.
+ * @returns The saved prompt object including its generated ID and timestamp.
+ */
+export async function saveUserPrompt(name: string, text: string): Promise<SavedPrompt> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  const promptId = neo4j.types.UUID.random().toString(); // Generate UUID for the prompt
+  const createdAt = new Date().toISOString();
+
+  try {
+    const result = await session.writeTransaction(async tx =>
+      tx.run(
+        `CREATE (p:SavedPrompt {
+           promptId: $promptId,
+           name: $name,
+           text: $text,
+           createdAt: datetime($createdAt)
+         }) RETURN p.promptId AS promptId, p.name AS name, p.text AS text, p.createdAt AS createdAt`,
+        { promptId, name, text, createdAt }
+      )
+    );
+    const record = result.records[0];
+    return {
+      promptId: record.get('promptId'),
+      name: record.get('name'),
+      text: record.get('text'),
+      createdAt: record.get('createdAt').toString(), // Convert Neo4j DateTime to ISO string
+    };
+  } catch (error: any) {
+    console.error(`Error saving user prompt "${name}":`, error.message, error.stack);
+    throw new Error(`Failed to save user prompt: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Retrieves all saved prompts from Neo4j, ordered by creation date.
+ * @returns An array of SavedPrompt objects.
+ */
+export async function getSavedPrompts(): Promise<SavedPrompt[]> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    const result = await session.readTransaction(async tx =>
+      tx.run(
+        `MATCH (p:SavedPrompt)
+         RETURN p.promptId AS promptId, p.name AS name, p.text AS text, p.createdAt AS createdAt
+         ORDER BY p.createdAt DESC`
+      )
+    );
+    return result.records.map(record => ({
+      promptId: record.get('promptId'),
+      name: record.get('name'),
+      text: record.get('text'),
+      createdAt: record.get('createdAt').toString(),
+    }));
+  } catch (error: any) {
+    console.error('Error retrieving saved prompts:', error.message, error.stack);
+    throw new Error(`Failed to retrieve saved prompts: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Deletes a saved prompt from Neo4j by its ID.
+ * @param promptId The ID of the prompt to delete.
+ */
+export async function deleteSavedPrompt(promptId: string): Promise<void> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    await session.writeTransaction(async tx =>
+      tx.run(
+        `MATCH (p:SavedPrompt {promptId: $promptId}) DETACH DELETE p`,
+        { promptId }
+      )
+    );
+    console.log(`Prompt ${promptId} deleted successfully.`);
+  } catch (error: any) {
+    console.error(`Error deleting prompt ${promptId}:`, error.message, error.stack);
+    throw new Error(`Failed to delete prompt: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+
+/**
+ * Fetches an overview of the graph, optionally filtered by a search term.
+ * Returns data formatted for frontend graph visualization.
+ * @param searchTerm - Optional term to filter nodes by (e.g., matching name property).
+ * @param limit - Optional limit for the number of nodes/relationships.
+ */
+export async function getGraphOverview(searchTerm?: string, limit: number = 50): Promise<FeGraphData> {
+  let query: string;
+  const params: Record<string, any> = { limit };
+
+  if (searchTerm) {
+    // Query nodes matching the search term and their direct relationships
+    // This query returns paths of length 1 where one node matches the search term.
+    query = `
+      MATCH path = (n)-[r]-(m)
+      WHERE (n.name CONTAINS $searchTerm OR n.id CONTAINS $searchTerm OR n.nodeType CONTAINS $searchTerm)
+      RETURN n, r, m
+      LIMIT $limit
+    `;
+    // Simpler query: just nodes matching and then try to get their rels separately (could be more complex)
+    // query = `
+    //   MATCH (n)
+    //   WHERE n.name CONTAINS $searchTerm OR n.id CONTAINS $searchTerm OR n.nodeType CONTAINS $searchTerm
+    //   OPTIONAL MATCH (n)-[r]-(m)
+    //   RETURN n, r, m
+    //   LIMIT $limit
+    // `;
+    params.searchTerm = searchTerm;
+  } else {
+    // Query a general overview of the graph (e.g., some central nodes or a random sample)
+    // This example fetches all nodes and relationships up to a limit.
+    // For large graphs, a more sophisticated sampling/centrality query would be needed.
+    query = `
+      MATCH (n)
+      OPTIONAL MATCH (n)-[r]-(m)
+      RETURN n, r, m
+      LIMIT $limit
+    `;
+  }
+
+  console.log(`Executing getGraphOverview. Search: "${searchTerm}", Cypher: ${query}`);
+  const result = await executeCypherQuery(query, params);
+  return recordsToFeGraphData(result.records);
+}
+
+/**
+ * Fetches a specific node and its immediate neighbors.
+ * Returns data formatted for frontend graph visualization.
+ * @param nodeId - The ID of the central node.
+ */
+export async function getNodeWithNeighbors(nodeId: string): Promise<FeGraphData> {
+  // Query for the central node, its direct relationships, and the connected neighbor nodes.
+  const query = `
+    MATCH (n {id: $nodeId})-[r]-(m)
+    RETURN n, r, m
+    UNION
+    MATCH (n {id: $nodeId})
+    RETURN n, null as r, null as m
+  `;
+  // The UNION part ensures the central node is returned even if it has no relationships.
+  const params = { nodeId };
+
+  console.log(`Executing getNodeWithNeighbors for nodeId: "${nodeId}", Cypher: ${query}`);
+  const result = await executeCypherQuery(query, params);
+  return recordsToFeGraphData(result.records);
 }
 
 

@@ -1,7 +1,7 @@
 import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { RetrievalQAChain, ConversationalRetrievalQAChain } from 'langchain/chains';
-import { GEMINI_API_KEY } from '../config';
+import { GEMINI_API_KEY, DEFAULT_CHAT_MODEL_NAME } from '../config'; // Import new config for chat model name
 import {
   ChatPromptTemplate,
   HumanMessagePromptTemplate,
@@ -13,29 +13,35 @@ import { BaseMessage } from '@langchain/core/messages';
 
 let llm: ChatGoogleGenerativeAI | undefined;
 
-if (GEMINI_API_KEY) {
-  llm = new ChatGoogleGenerativeAI({
-    apiKey: GEMINI_API_KEY,
-    modelName: 'gemini-2.0-flash', // As per user requirement
-    temperature: 0.3, // Default, can be configured
-  });
-  console.log('ChatGoogleGenerativeAI (gemini-2.0-flash) initialized for query-engine.ts');
-} else {
-  console.warn('GEMINI_API_KEY is not set. Query engine will not be functional.');
+function initializeLlm(): ChatGoogleGenerativeAI | undefined {
+  if (GEMINI_API_KEY) {
+    try {
+      const model = new ChatGoogleGenerativeAI({
+        apiKey: GEMINI_API_KEY,
+        modelName: DEFAULT_CHAT_MODEL_NAME,
+        temperature: 0.3, // Default, can be configured
+      });
+      console.log(`ChatGoogleGenerativeAI initialized with model ${DEFAULT_CHAT_MODEL_NAME} for query-engine.ts`);
+      return model;
+    } catch (error) {
+      console.error(`Failed to initialize ChatGoogleGenerativeAI with model ${DEFAULT_CHAT_MODEL_NAME}:`, error);
+      return undefined;
+    }
+  } else {
+    console.warn('GEMINI_API_KEY is not set. Query engine will not be functional.');
+    return undefined;
+  }
 }
+
+llm = initializeLlm();
 
 function getInitializedLlm(): ChatGoogleGenerativeAI {
   if (!llm) {
-    if (GEMINI_API_KEY) { // Attempt re-initialization
-        llm = new ChatGoogleGenerativeAI({
-            apiKey: GEMINI_API_KEY,
-            modelName: 'gemini-2.0-flash',
-            temperature: 0.3,
-        });
-        console.log('Re-initialized ChatGoogleGenerativeAI in query-engine.ts');
-        return llm;
+    console.log("Attempting to re-initialize LLM in getInitializedLlm...");
+    llm = initializeLlm();
+    if (!llm) {
+      throw new Error('LLM not initialized and re-initialization failed. GEMINI_API_KEY might be missing or chat model name is invalid.');
     }
-    throw new Error('LLM not initialized. GEMINI_API_KEY is missing.');
   }
   return llm;
 }

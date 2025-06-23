@@ -28,10 +28,16 @@ const KnowledgeGraphVisualizer: React.FC = () => {
     setError('');
     try {
       const data = await getGraphData(term);
+      if (data.nodes.length === 0 && term) {
+        setError(`No results found for "${term}". Try a different search term.`);
+      } else if (data.nodes.length === 0 && !term) {
+        setError('No graph data available. Try uploading some documents first.');
+      }
       setGraphData(data);
     } catch (err: any) {
       console.error('Failed to fetch graph data:', err);
-      setError(err.message || 'Could not load graph data.');
+      const message = err.response?.data?.message || err.message || 'An unexpected error occurred while loading graph data. Please try again.';
+      setError(`Failed to load graph data: ${message}`);
       setGraphData({ nodes: [], links: [] }); // Clear graph on error
     } finally {
       setIsLoading(false);
@@ -55,7 +61,8 @@ const KnowledgeGraphVisualizer: React.FC = () => {
         setActiveRelationshipTypeFilters(new Set(schema.relationshipTypes));
       } catch (err: any) {
         console.error('Failed to fetch graph schema:', err);
-        setSchemaError(err.message || 'Could not load graph schema.');
+        const message = err.response?.data?.message || err.message || 'An unexpected error occurred while loading graph schema.';
+        setSchemaError(`Schema Error: ${message}`);
       }
     };
     fetchSchema();
@@ -121,6 +128,19 @@ const KnowledgeGraphVisualizer: React.FC = () => {
     try {
       const newGraphData = await getNodeNeighbors(node.id as string);
 
+      if (newGraphData.nodes.length <= 1 && newGraphData.links.length === 0) { // Only the central node returned, or no new nodes/links
+        // Check if the central node itself was found. If newGraphData.nodes is empty, it means node ID was not found.
+        // getNodeNeighbors in backend now returns 404 if node not found, so this catch block handles that.
+        // This message is for when the node is found but has no *new* neighbors to show.
+        const centralNodeExists = newGraphData.nodes.some(n => n.id === node.id);
+        if (centralNodeExists) {
+             setError(`Node "${(node as any).name || node.id}" has no further unvisualized neighbors.`);
+        } else {
+            // This case should ideally be caught by the catch block if API returns 404
+            setError(`Node with ID "${node.id}" was not found.`);
+        }
+      }
+
       setGraphData(prevData => {
         const existingNodeIds = new Set(prevData.nodes.map(n => n.id));
         const newNodes = newGraphData.nodes.filter(n => !existingNodeIds.has(n.id));
@@ -142,7 +162,8 @@ const KnowledgeGraphVisualizer: React.FC = () => {
 
     } catch (err: any) {
       console.error(`Failed to fetch neighbors for node ${node.id}:`, err);
-      setError(err.message || `Could not expand node ${node.id}.`);
+      const message = err.response?.data?.message || err.message || `An unexpected error occurred while expanding node "${(node as any).name || node.id}".`;
+      setError(`Could not expand node: ${message}`);
     } finally {
       setIsExpandingNode(false);
     }

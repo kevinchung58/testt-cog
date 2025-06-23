@@ -35,6 +35,12 @@ function App() {
 
       <footer className="app-footer text-center text-muted" style={{marginTop: '50px', padding: '20px 0', fontSize: '0.9em'}}> {/* Used text-center and text-muted */}
          <p>Cognee RAG Application Demo</p>
+         <div className="llm-info" style={{ marginTop: '10px', fontSize: '0.8em' }}>
+            <p>
+              Using LLM: <strong>gemini-2.0-flash</strong> (for chat & graph processing) &
+              Embedding Model: <strong>text-embedding-004</strong>
+            </p>
+         </div>
       </footer>
     </div>
   );

@@ -1,5 +1,6 @@
 import './config'; // Ensures .env variables are loaded
 import express, { Request } from 'express';
+import cors from 'cors'; // Import cors middleware
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -9,8 +10,21 @@ import { CHROMA_COLLECTION_NAME as DEFAULT_CHROMA_COLLECTION_NAME } from './conf
 import { processFileToDocuments, SupportedFileMimeTypes } from './toolkit/data-processor';
 import { addDocuments as addDocumentsToVectorStore, createRetriever as createVectorStoreRetriever } from './toolkit/vector-store';
 import { createRAGChain, createConversationalChain } from './toolkit/query-engine';
-import { documentsToGraph, queryGraph as queryKnowledgeGraph, fetchGraphSchemaSummary as fetchNeo4jGraphSchema } from './toolkit/graph-builder';
+import {
+  documentsToGraph,
+  queryGraph as queryKnowledgeGraph,
+  fetchGraphSchemaSummary as fetchNeo4jGraphSchema,
+  getGraphOverview,
+  getNodeWithNeighbors,
+  saveChatMessage,
+  getChatHistory,
+  deleteChatHistory, // New import for deleting chat history
+  saveUserPrompt,
+  getSavedPrompts,
+  deleteSavedPrompt
+} from './toolkit/graph-builder';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -25,6 +39,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
 const upload = multer({ storage: storage });
+
+// Enable CORS for all routes and origins (adjust for production as needed)
+app.use(cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -97,31 +114,53 @@ app.post('/ingest', upload.single('file'), async (req: Request<{}, {}, {}, Inges
 
 interface QueryBody {
   question: string;
+  sessionId?: string; // Optional: client can send a session ID
   collectionName?: string;
   chat_history?: Array<{ type: 'human' | 'ai'; content: string }>; // For conversational chain
-  use_knowledge_graph?: boolean; // New flag to optionally query knowledge graph
+  use_knowledge_graph?: boolean;
 }
 
 // POST endpoint for queries (supports basic RAG and conversational RAG)
 app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
-  const {
+  let { // Use let because sessionId might be reassigned
     question,
+    sessionId,
     collectionName = DEFAULT_CHROMA_COLLECTION_NAME,
-    chat_history,
-    use_knowledge_graph = false // Default to false, RAG will be from vector store primarily
+    chat_history, // This is the LangChain format chat_history, not to be confused with our persisted history
+    use_knowledge_graph = false
   } = req.body;
 
   if (!question || typeof question !== 'string') {
     return res.status(400).json({ message: 'Validation error: question is required and must be a string.' });
   }
 
-  console.log(`Received query: "${question}", Collection: ${collectionName}, Use KG: ${use_knowledge_graph}`);
-  if (chat_history) console.log(`Chat history items: ${chat_history.length}`);
+  // Session ID management
+  if (!sessionId) {
+    sessionId = uuidv4();
+    console.log(`No sessionId provided, generated new one: ${sessionId}`);
+    // Note: Client needs to receive this sessionId to continue the conversation session.
+    // We can send it as a custom header or as part of the first SSE event.
+    // For simplicity, let's try to send it in a custom header. This is non-standard for SSE.
+    // A better way might be a dedicated SSE event type: 'session_id'.
+    res.setHeader('X-Session-Id', sessionId); // Custom header to send back the session ID
+  }
 
+  console.log(`Received query for sessionId ${sessionId}: "${question}", Collection: ${collectionName}, Use KG: ${use_knowledge_graph}`);
+  if (chat_history) console.log(`Chat history (for LangChain) items: ${chat_history.length}`);
+
+  // Save user's message
+  const userMessageToSave = { id: `user-${Date.now()}-${Math.random().toString(36).substring(2,7)}`, type: 'user' as const, text: question };
+  try {
+    await saveChatMessage(sessionId, userMessageToSave);
+  } catch (dbError) {
+    console.error(`Failed to save user message for session ${sessionId}:`, dbError);
+    // Decide if this should be a fatal error for the query. For now, log and continue.
+  }
+
+  let aiResponseToSave: { id: string; type: 'ai'; text: string } | null = null;
 
   try {
     const retriever = await createVectorStoreRetriever(collectionName);
-    let streamedResponse = "";
     let sourceDocuments: any[] = []; // To store source documents from the chain
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -232,8 +271,19 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
      res.write(`data: ${JSON.stringify({ type: 'completed', message: 'Query processing completed.' })}\n\n`);
     res.end();
 
+    // After stream completion, save the full AI response
+    if (finalAnswer && sessionId) {
+      aiResponseToSave = { id: `ai-${Date.now()}-${Math.random().toString(36).substring(2,7)}`, type: 'ai' as const, text: finalAnswer };
+      try {
+        await saveChatMessage(sessionId, aiResponseToSave);
+      } catch (dbError) {
+        console.error(`Failed to save AI message for session ${sessionId}:`, dbError);
+        // Log and continue, as the user already received the response.
+      }
+    }
+
   } catch (error: any) {
-    console.error(`Error processing query "${question}":`, error.message, error.stack);
+    console.error(`Error processing query for session ${sessionId}, question "${question}":`, error.message, error.stack);
     if (!res.headersSent) {
       res.status(500).json({ message: 'Error processing your query.', error: error.message });
     } else {
@@ -248,8 +298,42 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
   }
 });
 
+// Endpoint to retrieve chat history for a session
+app.get('/chat/history/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId) {
+    return res.status(400).json({ message: 'Session ID is required.' });
+  }
+  try {
+    const history = await getChatHistory(sessionId);
+    res.json(history);
+  } catch (error: any) {
+    console.error(`Error fetching history for session ${sessionId}:`, error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch chat history.', error: error.message });
+  }
+});
+
+app.delete('/chat/history/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId) {
+    return res.status(400).json({ message: 'Session ID is required for deletion.' });
+  }
+  try {
+    await deleteChatHistory(sessionId);
+    res.status(204).send(); // No content on successful deletion
+  } catch (error: any) {
+    console.error(`Error deleting history for session ${sessionId}:`, error.message, error.stack);
+    // Check if error indicates not found, potentially return 404
+    if (error.message.toLowerCase().includes('not found')) { // Basic check
+        return res.status(404).json({ message: `Chat history for session ID ${sessionId} not found.`});
+    }
+    res.status(500).json({ message: 'Failed to delete chat history.', error: error.message });
+  }
+});
+
+
 // Refactor graph utility endpoints
-app.get('/graph-schema', async (req, res) => { // Renamed from /graph-schema-summary
+app.get('/graph-schema', async (req, res) => {
   console.log('Received request for graph schema summary.');
   try {
     // This function is now imported from graph-builder.ts
@@ -277,12 +361,96 @@ app.post('/query-graph', async (req, res) => {
     }
 });
 
+// New Graph Endpoints for Frontend Visualization
+app.get('/graph/overview', async (req, res) => {
+  const searchTerm = req.query.searchTerm as string | undefined;
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50; // Default limit 50
+
+  if (isNaN(limit) || limit <= 0) {
+    return res.status(400).json({ message: 'Invalid limit parameter. Must be a positive integer.' });
+  }
+
+  console.log(`Received request for graph overview. Search term: "${searchTerm}", Limit: ${limit}`);
+  try {
+    const graphData = await getGraphOverview(searchTerm, limit);
+    res.json(graphData);
+  } catch (error: any) {
+    console.error('Error in /graph/overview route:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch graph overview.', error: error.message });
+  }
+});
+
+app.get('/graph/node/:id/neighbors', async (req, res) => {
+  const nodeId = req.params.id;
+  if (!nodeId) {
+    return res.status(400).json({ message: 'Node ID is required.' });
+  }
+  console.log(`Received request for neighbors of node: "${nodeId}"`);
+  try {
+    const graphData = await getNodeWithNeighbors(nodeId);
+    if (graphData.nodes.length === 0 && graphData.links.length === 0) {
+      // This can happen if the node ID doesn't exist, or exists but has no neighbors.
+      // The current getNodeWithNeighbors query will return the node itself if it exists.
+      // So if nodes array is empty, it means node ID was not found.
+      return res.status(404).json({ message: `Node with ID '${nodeId}' not found or has no connections.` });
+    }
+    res.json(graphData);
+  } catch (error: any) {
+    console.error(`Error in /graph/node/${nodeId}/neighbors route:`, error.message, error.stack);
+    res.status(500).json({ message: `Failed to fetch neighbors for node ${nodeId}.`, error: error.message });
+  }
+});
+
 
 // Note: /node-neighbors and /graph-data might need more specific functions in graph-builder.ts
 // if their Cypher queries are highly specialized for visualization and not general Q&A.
 // For now, they are removed as their direct counterparts in queryOrchestrationService are gone,
 // and queryKnowledgeGraph is a more general Q&A interface.
 // They can be re-added if specific graph traversal/visualization queries are needed from graph-builder.
+
+// Saved Prompts Endpoints
+app.post('/prompts', async (req, res) => {
+  const { name, text } = req.body;
+  if (!name || typeof name !== 'string' || !text || typeof text !== 'string') {
+    return res.status(400).json({ message: 'Validation error: name and text are required and must be strings.' });
+  }
+  try {
+    const savedPrompt = await saveUserPrompt(name, text);
+    res.status(201).json(savedPrompt);
+  } catch (error: any) {
+    console.error('Error saving prompt:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to save prompt.', error: error.message });
+  }
+});
+
+app.get('/prompts', async (req, res) => {
+  try {
+    const prompts = await getSavedPrompts();
+    res.json(prompts);
+  } catch (error: any) {
+    console.error('Error fetching saved prompts:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch saved prompts.', error: error.message });
+  }
+});
+
+app.delete('/prompts/:promptId', async (req, res) => {
+  const { promptId } = req.params;
+  if (!promptId) {
+    return res.status(400).json({ message: 'Prompt ID is required.' });
+  }
+  try {
+    await deleteSavedPrompt(promptId);
+    res.status(204).send(); // No content on successful deletion
+  } catch (error: any) {
+    console.error(`Error deleting prompt ${promptId}:`, error.message, error.stack);
+    // Check if error indicates not found, potentially return 404
+    if (error.message.toLowerCase().includes('not found')) { // Basic check
+        return res.status(404).json({ message: `Prompt with ID ${promptId} not found.`});
+    }
+    res.status(500).json({ message: `Failed to delete prompt ${promptId}.`, error: error.message });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Backend server (LangChain Integrated) listening on port ${port}`);

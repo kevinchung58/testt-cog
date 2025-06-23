@@ -13,7 +13,7 @@
 *   [x] **後端專案建立 (Backend Project Creation):**
     *   [x] Node.js/Express 專案已在 `cognee-backend` 中結構化 (Node.js/Express project already structured in `cognee-backend`)
     *   [x] 檢視 `cognee-backend/package.json` 以了解依賴項 (Review `cognee-backend/package.json` for dependencies)
-    *   [x] 主要後端依賴項包括 Express, Langchain.js, Google GenAI SDK, Neo4j Driver, ChromaDB Client, CORS (Key backend dependencies include Express, Langchain.js, Google GenAI SDK, Neo4j driver, ChromaDB client, CORS)
+    *   [x] 主要後端依賴項包括 Express, Langchain.js, Google GenAI SDK, Neo4j Driver, ChromaDB Client, CORS, uuid (Key backend dependencies include Express, Langchain.js, Google GenAI SDK, Neo4j driver, ChromaDB client, CORS, uuid)
     *   [x] **注意:** `package.json` 包含 `@langchain/openai` 和 `openai` 套件。確認是否需要移除以確保僅使用 Gemini。 - (已移除 OpenAI 相關依賴) (OpenAI dependencies removed)
 *   [x] **版本控制 (Version Control):**
     *   [x] 初始化 Git 倉儲 (Initialize Git repository) - (Project is likely under Git)
@@ -30,14 +30,15 @@
     *   [x] API 金鑰管理透過 `.env` 檔案和 `src/config.ts` 處理 (API key management via `.env` file and `src/config.ts`)
 *   [x] **API 端點設計 (API Endpoint Design):**
     *   [x] `POST /ingest`: 接收檔案，處理並存儲到向量數據庫，可選建立知識圖譜 (Receives file, processes, stores in vector DB, optionally builds knowledge graph)
-    *   [x] `POST /query`: 接收問題（可選聊天歷史、知識圖譜使用標誌），與 LLM 互動，串流回傳結果 (Receives question (optional chat history, KG usage flag), interacts with LLM, streams back result using SSE)
+    *   [x] `POST /query`: 接收問題（可選聊天歷史、知識圖譜使用標誌、會話ID），與 LLM 互動，串流回傳結果，並保存聊天訊息至Neo4j。(Receives question (optional chat history, KG usage flag, session ID), interacts with LLM, streams back result using SSE, and saves chat messages to Neo4j.)
     *   [x] `GET /graph-schema`: 獲取 Neo4j 圖譜摘要 (Get Neo4j graph schema summary)
     *   [x] `POST /query-graph`: 使用自然語言查詢知識圖譜 (Query knowledge graph with natural language)
     *   [x] `GET /graph/overview`: (新增) 獲取圖譜概覽數據，可選搜索詞和限制 (New: Get graph overview data, optional search term and limit)
     *   [x] `GET /graph/node/:id/neighbors`: (新增) 獲取特定節點及其鄰居的數據 (New: Get data for a specific node and its neighbors)
+    *   [x] `GET /chat/history/:sessionId`: (新增) 獲取特定會話的聊天歷史 (New: Get chat history for a specific session)
 *   [x] **請求處理與驗證 (Request Handling & Validation):**
     *   [x] 使用 `express.json()` 和 `multer` 處理請求 (Using `express.json()` and `multer` for request handling)
-    *   [x] `/ingest`, `/query`, `/graph/overview` 中有基本的輸入驗證 (Basic input validation in `/ingest`, `/query`, `/graph/overview`)
+    *   [x] `/ingest`, `/query`, `/graph/overview`, `/chat/history/:sessionId` 中有基本的輸入驗證 (Basic input validation in routes)
 *   [x] **錯誤處理 (Error Handling):**
     *   [x] 在 `server.ts` 和 toolkit 模組中有 try-catch 錯誤處理 (Try-catch error handling in `server.ts` and toolkit modules)
     *   [x] API 回傳一致的錯誤訊息結構 (APIs return consistent error message structure)
@@ -54,9 +55,10 @@
     *   [x] 已設計聊天介面 (`ChatInterface.tsx`) (Chat interface designed)
     *   [x] 已設計知識圖譜視覺化介面 (`KnowledgeGraphVisualizer.tsx`) (Knowledge graph visualization interface designed)
     *   [x] 已處理載入狀態、錯誤訊息的顯示 (Loading states, error messages display handled)
+    *   [x] `KnowledgeGraphVisualizer.tsx` 中的錯誤訊息已增強，更具用戶友好性。(Error messages in `KnowledgeGraphVisualizer.tsx` enhanced for user-friendliness.)
 *   [x] **元件開發 (Component Development):**
     *   [x] `FileUpload` 元件 (Component for file upload)
-    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示) (Component for chat, including input and response display)
+    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕) (Component for chat, including input, response display, copy button, clear history button)
     *   [x] `KnowledgeGraphVisualizer` 元件 (Component for graph visualization)
     *   [x] `GraphDetailPanel` 元件 (Component for showing details of graph elements)
 *   [x] **狀態管理 (State Management):**
@@ -68,6 +70,7 @@
     *   [x] **API 端點校準 (API Endpoint Alignment):**
         *   [x] `apiService.ts` 中的 `getGraphSchemaSummary` 已更新為呼叫 `/graph-schema`。(Updated `getGraphSchemaSummary` to call `/graph-schema`.)
         *   [x] `apiService.ts` 中的 `getGraphData` 和 `getNodeNeighbors` 已更新為分別呼叫新的 `/graph/overview` 和 `/graph/node/:id/neighbors` 端點。(`getGraphData` and `getNodeNeighbors` in `apiService.ts` updated to call new `/graph/overview` and `/graph/node/:id/neighbors` endpoints respectively.)
+        *   [x] `apiService.ts` 中新增 `fetchChatHistory` 函式，並修改 `askQuery` 以處理 `sessionId`。(Added `fetchChatHistory` and modified `askQuery` in `apiService.ts` to handle `sessionId`.)
 *   [x] **表單處理 (Form Handling):**
     *   [x] `FileUpload.tsx` 和 `ChatInterface.tsx` 中擷取使用者輸入並處理提交事件 (User input capture and form submission handled in `FileUpload.tsx` and `ChatInterface.tsx`)
 *   [x] **渲染 LLM 回應 (Rendering LLM Response):**
@@ -80,9 +83,9 @@
 **進階功能與改進 (Advanced Features & Improvements)**
 
 *   [x] **對話管理 (Conversation Management):**
-    *   [x] 前端 `ChatInterface.tsx` 維護聊天歷史狀態，並使用 Local Storage 進行持久化。(Frontend `ChatInterface.tsx` maintains chat history state and persists it using Local Storage.)
-    *   [ ] 後端 `/query` 端點接受 `chat_history`，但未實現伺服器端持久化儲存 (Backend `/query` endpoint accepts `chat_history` but server-side persistence is not implemented)
-    *   [x] 允許使用者清除對話 (前端已實現 Local Storage 清除) (Allow users to clear conversations - frontend Local Storage clearing implemented)
+    *   [x] 前端 `ChatInterface.tsx` 管理 `sessionId` (存於 Local Storage)，並從後端加載/顯示歷史記錄。(Frontend `ChatInterface.tsx` manages `sessionId` (stored in Local Storage) and loads/displays history from backend.)
+    *   [x] 後端 `/query` 端點接受 `sessionId`，並使用 Neo4j 持久化聊天歷史。 (Backend `/query` endpoint accepts `sessionId` and persists chat history using Neo4j.)
+    *   [x] 允許使用者清除對話 (前端清除本地 `sessionId` 並開始新會話，後端未實現刪除歷史功能)。 (Allow users to clear conversations - frontend clears local `sessionId` and starts a new session; backend deletion not implemented.)
 *   [ ] **LLM 模型選擇 (LLM Model Selection):**
     *   [ ] 目前固定使用 `gemini-2.0-flash` 和 `text-embedding-004`。未提供模型選擇功能。(Currently fixed to specific Gemini models. Model selection feature not available.)
 *   [x] **提示工程 (Prompt Engineering):**
@@ -98,7 +101,7 @@
     *   [x] 後端有 `jest` 設定和一些 toolkit 測試檔案 (`*.test.ts`) (Backend has `jest` setup and some toolkit test files)
     *   [x] 已為新的後端圖譜端點添加單元測試和整合測試 (Unit and integration tests added for new backend graph endpoints)
     *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
-    *   [ ] **前端測試:** 檢查 `KnowledgeGraphVisualizer.tsx` 和 `ChatInterface.tsx` 的測試是否需要更新以反映新功能和改進。(Review if tests for `KnowledgeGraphVisualizer.tsx` and `ChatInterface.tsx` need updates to reflect new features/improvements.)
+    *   [x] 已為前端 `ChatInterface.tsx` 和 `KnowledgeGraphVisualizer.tsx` 中與新功能/錯誤處理相關的部分添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` and `KnowledgeGraphVisualizer.tsx`.)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
@@ -135,8 +138,8 @@
         *   [ ] ~~修改 `KnowledgeGraphVisualizer.tsx` 以使用現有的 `/query-graph` 端點（可能需要調整前端邏輯以適應自然語言查詢）。~~
         *   [x] ~~或，在後端重新實現 `/graph-data` (用於一般搜尋/初始視圖) 和 `/node-neighbors/:nodeId` (用於節點擴展) 端點，使其與 `graph-builder.ts` 中的 Neo4j 功能對接。~~ (已完成，新端點為 `/graph/overview` 和 `/graph/node/:id/neighbors`)
 *   [x] ~~**前端:** `KnowledgeGraphVisualizer.tsx` - `fetchData` 和 `handleNodeDoubleClick` 中的錯誤處理可以更細緻地向使用者顯示問題所在。~~ (已完成)
-*   [x] ~~**對話歷史持久化:** 考慮是否需要在後端或瀏覽器本地儲存中實現對話歷史的持久化。~~ (已完成 - Local Storage)
-*   [x] ~~**測試覆蓋率:** 提升前後端的單元測試和整合測試覆蓋率 (除了已為圖譜端點添加的測試外)。~~ (已為 `/ingest` 和 `/graph-schema` 添加後端測試)
+*   [x] ~~**對話歷史持久化:** 使用 Neo4j 實現後端聊天歷史持久化，並更新前端以使用此功能。~~ (已完成)
+*   [x] ~~**測試覆蓋率:** 為後端 `/ingest`、`/graph-schema` 端點以及前端 `ChatInterface` 和 `KnowledgeGraphVisualizer` 的新功能/錯誤處理添加測試。~~ (已完成)
 *   [x] **(可選) UI/UX 改進:**
     *   [x] ~~`KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。~~ (已評估，現有 CSS 基本可接受)
     *   [x] ~~`ChatInterface`: 允許複製 AI 回應。~~ (已完成)

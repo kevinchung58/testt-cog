@@ -1,10 +1,12 @@
 import React, { useState, FormEvent, ChangeEvent, useEffect, useCallback } from 'react';
-import { askQuery } from '../services/apiService';
+import { askQuery, fetchChatHistory, ApiChatMessage } from '../services/apiService';
 import styles from './ChatInterface.module.css';
+import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
 
-const LOCAL_STORAGE_KEY = 'cogneeChatHistory';
+// const LOCAL_STORAGE_KEY = 'cogneeChatHistory'; // No longer used for history itself
+const SESSION_ID_STORAGE_KEY = 'cogneeChatSessionId';
 
-interface ChatMessage {
+interface ChatMessage { // This is the component's internal ChatMessage type
   id: string;
   type: 'user' | 'ai';
   text: string;
@@ -16,28 +18,50 @@ interface ChatMessage {
 
 const ChatInterface: React.FC = () => {
   const [currentQuestion, setCurrentQuestion] = useState<string>('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => {
-    // Load history from local storage on initial load
-    try {
-      const storedHistory = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return storedHistory ? JSON.parse(storedHistory) : [];
-    } catch (error) {
-      console.error("Error loading chat history from local storage:", error);
-      return [];
-    }
-  });
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Save history to local storage whenever it changes
+  // Load sessionId on mount and fetch history
   useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chatHistory));
-    } catch (error) {
-      console.error("Error saving chat history to local storage:", error);
-      // Potentially alert user if storage is full or disabled
+    let storedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
+    if (!storedSessionId) {
+      storedSessionId = uuidv4();
+      localStorage.setItem(SESSION_ID_STORAGE_KEY, storedSessionId);
     }
-  }, [chatHistory]);
+    setSessionId(storedSessionId);
+
+    const loadHistory = async () => {
+      if (storedSessionId) {
+        setIsLoading(true); // Indicate loading history
+        try {
+          const history = await fetchChatHistory(storedSessionId);
+          // Ensure IDs are unique if backend and frontend might generate similar ones (e.g. Date.now())
+          // For now, assuming backend IDs are sufficiently unique or we'll use them directly.
+          // The ApiChatMessage might have different ID structure than internal ChatMessage if needed.
+          setChatHistory(history.map(h => ({id: h.id, type: h.type, text: h.text })));
+        } catch (e) {
+          console.error("Failed to fetch chat history:", e);
+          setError("Could not load previous chat history.");
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    loadHistory();
+  }, []);
+
+  // This useEffect is no longer needed as history is not saved directly to local storage here.
+  // // Save history to local storage whenever it changes
+  // useEffect(() => {
+  //   try {
+  //     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chatHistory));
+  //   } catch (error) {
+  //     console.error("Error saving chat history to local storage:", error);
+  //     // Potentially alert user if storage is full or disabled
+  //   }
+  // }, [chatHistory]);
 
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -75,7 +99,13 @@ const ChatInterface: React.FC = () => {
 
     setIsLoading(true);
     setError('');
-    setCurrentQuestion(''); // Clear input field immediately after sending
+    setCurrentQuestion(''); // Clear input field
+
+    const handleNewSessionId = (newSessionId: string) => {
+      setSessionId(newSessionId);
+      localStorage.setItem(SESSION_ID_STORAGE_KEY, newSessionId);
+      console.log('Session ID updated by backend:', newSessionId);
+    };
 
     const onToken = (token: string) => {
       setChatHistory(prevHistory =>
@@ -88,6 +118,8 @@ const ChatInterface: React.FC = () => {
     const onComplete = () => {
       console.log('Streaming complete.');
       setIsLoading(false);
+      // User and AI messages are saved by backend during /query call.
+      // No explicit save needed here. Frontend history is for display.
     };
 
     const onError = (error: Error) => {
@@ -103,13 +135,20 @@ const ChatInterface: React.FC = () => {
       setIsLoading(false);
     };
 
-    askQuery(userMessage.text, onToken, onComplete, onError);
+    askQuery(userMessage.text, sessionId, onToken, onComplete, onError, handleNewSessionId);
   };
 
-  const handleClearHistory = () => {
+  const handleClearHistory = async () => {
+    if (sessionId) {
+      // Optional: Call backend to delete history for this sessionId if such endpoint exists.
+      // For now, just clearing client state and starting a new session.
+      localStorage.removeItem(SESSION_ID_STORAGE_KEY);
+      const newSessionId = uuidv4();
+      localStorage.setItem(SESSION_ID_STORAGE_KEY, newSessionId);
+      setSessionId(newSessionId);
+    }
     setChatHistory([]);
-    // localStorage.removeItem(LOCAL_STORAGE_KEY); // This is handled by the useEffect when chatHistory becomes []
-    setError(''); // Also clear any errors
+    setError('');
   };
 
   return (

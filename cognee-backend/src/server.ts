@@ -14,10 +14,13 @@ import {
   documentsToGraph,
   queryGraph as queryKnowledgeGraph,
   fetchGraphSchemaSummary as fetchNeo4jGraphSchema,
-  getGraphOverview, // New import for graph overview
-  getNodeWithNeighbors, // New import for node neighbors
+  getGraphOverview,
+  getNodeWithNeighbors,
+  saveChatMessage, // New import for saving chat messages
+  getChatHistory, // New import for retrieving chat history
 } from './toolkit/graph-builder';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { v4 as uuidv4 } from 'uuid'; // For generating session IDs if needed
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -107,31 +110,53 @@ app.post('/ingest', upload.single('file'), async (req: Request<{}, {}, {}, Inges
 
 interface QueryBody {
   question: string;
+  sessionId?: string; // Optional: client can send a session ID
   collectionName?: string;
   chat_history?: Array<{ type: 'human' | 'ai'; content: string }>; // For conversational chain
-  use_knowledge_graph?: boolean; // New flag to optionally query knowledge graph
+  use_knowledge_graph?: boolean;
 }
 
 // POST endpoint for queries (supports basic RAG and conversational RAG)
 app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
-  const {
+  let { // Use let because sessionId might be reassigned
     question,
+    sessionId,
     collectionName = DEFAULT_CHROMA_COLLECTION_NAME,
-    chat_history,
-    use_knowledge_graph = false // Default to false, RAG will be from vector store primarily
+    chat_history, // This is the LangChain format chat_history, not to be confused with our persisted history
+    use_knowledge_graph = false
   } = req.body;
 
   if (!question || typeof question !== 'string') {
     return res.status(400).json({ message: 'Validation error: question is required and must be a string.' });
   }
 
-  console.log(`Received query: "${question}", Collection: ${collectionName}, Use KG: ${use_knowledge_graph}`);
-  if (chat_history) console.log(`Chat history items: ${chat_history.length}`);
+  // Session ID management
+  if (!sessionId) {
+    sessionId = uuidv4();
+    console.log(`No sessionId provided, generated new one: ${sessionId}`);
+    // Note: Client needs to receive this sessionId to continue the conversation session.
+    // We can send it as a custom header or as part of the first SSE event.
+    // For simplicity, let's try to send it in a custom header. This is non-standard for SSE.
+    // A better way might be a dedicated SSE event type: 'session_id'.
+    res.setHeader('X-Session-Id', sessionId); // Custom header to send back the session ID
+  }
 
+  console.log(`Received query for sessionId ${sessionId}: "${question}", Collection: ${collectionName}, Use KG: ${use_knowledge_graph}`);
+  if (chat_history) console.log(`Chat history (for LangChain) items: ${chat_history.length}`);
+
+  // Save user's message
+  const userMessageToSave = { id: `user-${Date.now()}-${Math.random().toString(36).substring(2,7)}`, type: 'user' as const, text: question };
+  try {
+    await saveChatMessage(sessionId, userMessageToSave);
+  } catch (dbError) {
+    console.error(`Failed to save user message for session ${sessionId}:`, dbError);
+    // Decide if this should be a fatal error for the query. For now, log and continue.
+  }
+
+  let aiResponseToSave: { id: string; type: 'ai'; text: string } | null = null;
 
   try {
     const retriever = await createVectorStoreRetriever(collectionName);
-    let streamedResponse = "";
     let sourceDocuments: any[] = []; // To store source documents from the chain
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -242,8 +267,19 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
      res.write(`data: ${JSON.stringify({ type: 'completed', message: 'Query processing completed.' })}\n\n`);
     res.end();
 
+    // After stream completion, save the full AI response
+    if (finalAnswer && sessionId) {
+      aiResponseToSave = { id: `ai-${Date.now()}-${Math.random().toString(36).substring(2,7)}`, type: 'ai' as const, text: finalAnswer };
+      try {
+        await saveChatMessage(sessionId, aiResponseToSave);
+      } catch (dbError) {
+        console.error(`Failed to save AI message for session ${sessionId}:`, dbError);
+        // Log and continue, as the user already received the response.
+      }
+    }
+
   } catch (error: any) {
-    console.error(`Error processing query "${question}":`, error.message, error.stack);
+    console.error(`Error processing query for session ${sessionId}, question "${question}":`, error.message, error.stack);
     if (!res.headersSent) {
       res.status(500).json({ message: 'Error processing your query.', error: error.message });
     } else {
@@ -258,8 +294,24 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
   }
 });
 
+// Endpoint to retrieve chat history for a session
+app.get('/chat/history/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId) {
+    return res.status(400).json({ message: 'Session ID is required.' });
+  }
+  try {
+    const history = await getChatHistory(sessionId);
+    res.json(history);
+  } catch (error: any) {
+    console.error(`Error fetching history for session ${sessionId}:`, error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch chat history.', error: error.message });
+  }
+});
+
+
 // Refactor graph utility endpoints
-app.get('/graph-schema', async (req, res) => { // Renamed from /graph-schema-summary
+app.get('/graph-schema', async (req, res) => {
   console.log('Received request for graph schema summary.');
   try {
     // This function is now imported from graph-builder.ts

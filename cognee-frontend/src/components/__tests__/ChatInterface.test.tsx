@@ -5,32 +5,68 @@ import userEvent from '@testing-library/user-event';
 import ChatInterface from '../ChatInterface'; // Adjust path as needed
 import * as apiService from '../../services/apiService'; // To mock askQuery
 
-// Mock the apiService.askQuery function
-vi.mock('../../services/apiService', () => ({
-  // Need to also mock other exports from apiService if ChatInterface uses them,
-  // or if other components imported in tests use them. For now, just askQuery.
-  askQuery: vi.fn(),
-  // Mock other exports if they exist and are used by any part of the render tree
-  ingestFile: vi.fn(),
-  getGraphData: vi.fn(),
-  getNodeNeighbors: vi.fn(),
+// Mock the apiService functions
+vi.mock('../../services/apiService', async (importOriginal) => {
+  const actual = await importOriginal() as typeof apiService;
+  return {
+    ...actual, // Preserve other exports if any that are not explicitly mocked
+    askQuery: vi.fn(),
+    fetchChatHistory: vi.fn(),
+    // Mock other exports if they exist and are used by any part of the render tree
+    // ingestFile: vi.fn(),
+    // getGraphData: vi.fn(),
+    // getNodeNeighbors: vi.fn(),
+  };
+});
+
+// Mock uuid
+vi.mock('uuid', () => ({
+  v4: vi.fn(),
 }));
 
 describe('ChatInterface Component', () => {
+  let mockAskQuery: vi.Mock;
+  let mockFetchChatHistory: vi.Mock;
+  let mockUuidV4: vi.Mock;
+
   beforeEach(() => {
     // Reset mocks before each test
     vi.resetAllMocks();
+
+    mockAskQuery = apiService.askQuery as vi.Mock;
+    mockFetchChatHistory = apiService.fetchChatHistory as vi.Mock;
+    mockUuidV4 = require('uuid').v4 as vi.Mock;
+
+    // Default mock implementations
+    mockFetchChatHistory.mockResolvedValue([]); // Default to no history
+    mockUuidV4.mockReturnValue('test-session-id'); // Default mock session ID
+
+    // Mock localStorage
+    Storage.prototype.getItem = vi.fn();
+    Storage.prototype.setItem = vi.fn();
+    Storage.prototype.removeItem = vi.fn();
   });
 
-  it('renders the input field, send button, and an empty chat history initially', () => {
+  afterEach(() => {
+    // Clear all mocks including localStorage
+    vi.clearAllMocks();
+  });
+
+
+  it('renders the input field, send button, and clear history button initially', async () => {
     render(<ChatInterface />);
     expect(screen.getByPlaceholderText(/ask a question.../i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /clear history/i })).toBeInTheDocument();
+
+    // Wait for initial history fetch (even if empty)
+    await waitFor(() => {
+      expect(mockFetchChatHistory).toHaveBeenCalled();
+    });
+
     const chatHistory = screen.getByRole('log');
     expect(chatHistory).toBeInTheDocument();
-    // Check for no messages. Children could be the "AI is thinking..." paragraph if isLoading starts true.
-    // Assuming isLoading is initially false.
-    expect(chatHistory.children.length).toBe(0);
+    expect(chatHistory.children.length).toBe(0); // Assuming no history initially
   });
 
   it('allows typing in the input field', async () => {
@@ -146,4 +182,99 @@ describe('ChatInterface Component', () => {
      expect(apiService.askQuery).not.toHaveBeenCalled();
      expect(screen.getByText(/please enter a question/i)).toBeInTheDocument();
  });
+
+  it('loads chat history from backend on mount using stored session ID', async () => {
+    const storedSessionId = 'existing-session-123';
+    (Storage.prototype.getItem as vi.Mock).mockReturnValue(storedSessionId);
+    const mockHistory: apiService.ApiChatMessage[] = [
+      { id: '1', type: 'user', text: 'Old question' },
+      { id: '2', type: 'ai', text: 'Old answer' },
+    ];
+    mockFetchChatHistory.mockResolvedValue(mockHistory);
+
+    render(<ChatInterface />);
+
+    await waitFor(() => {
+      expect(Storage.prototype.getItem).toHaveBeenCalledWith('cogneeChatSessionId');
+      expect(mockFetchChatHistory).toHaveBeenCalledWith(storedSessionId);
+      expect(screen.getByText('Old question')).toBeInTheDocument();
+      expect(screen.getByText('Old answer')).toBeInTheDocument();
+    });
+  });
+
+  it('generates a new session ID if none is stored and fetches history', async () => {
+    (Storage.prototype.getItem as vi.Mock).mockReturnValue(null); // No stored session ID
+    mockUuidV4.mockReturnValue('newly-generated-session-id');
+    mockFetchChatHistory.mockResolvedValue([]); // No history for new session
+
+    render(<ChatInterface />);
+
+    await waitFor(() => {
+      expect(mockUuidV4).toHaveBeenCalled();
+      expect(Storage.prototype.setItem).toHaveBeenCalledWith('cogneeChatSessionId', 'newly-generated-session-id');
+      expect(mockFetchChatHistory).toHaveBeenCalledWith('newly-generated-session-id');
+    });
+  });
+
+  it('allows copying AI message to clipboard', async () => {
+    // Mock navigator.clipboard
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    // Setup askQuery to provide an AI message
+    let onTokenCallback: (token: string) => void = () => {};
+    mockAskQuery.mockImplementation(
+      (question, sessionId, onToken, onComplete, onError, onSessionId) => {
+        onTokenCallback = onToken;
+        // Simulate session ID handling if needed for this specific test flow
+        if (!sessionId) onSessionId('mock-session-for-copy-test');
+      }
+    );
+
+    render(<ChatInterface />);
+    const input = screen.getByPlaceholderText(/ask a question.../i);
+    await userEvent.type(input, 'Test for copy');
+    await userEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    await waitFor(() => {
+        expect(screen.getAllByText('AI:').length).toBe(1);
+    });
+    act(() => {
+      onTokenCallback('AI response to copy.');
+    });
+
+    const copyButton = await screen.findByRole('button', { name: /copy ai response/i });
+    expect(copyButton).toBeInTheDocument();
+
+    await userEvent.click(copyButton);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('AI response to copy.');
+  });
+
+  it('clears chat history and resets session ID on "Clear History" click', async () => {
+    // Initial setup with some history and a session ID
+    (Storage.prototype.getItem as vi.Mock).mockReturnValue('session-to-clear');
+    mockFetchChatHistory.mockResolvedValue([{ id: '1', type: 'user', text: 'Message to clear' }]);
+
+    render(<ChatInterface />);
+    await waitFor(() => {
+      expect(screen.getByText('Message to clear')).toBeInTheDocument();
+    });
+
+    mockUuidV4.mockReturnValue('new-session-after-clear'); // For when new session ID is generated
+
+    const clearButton = screen.getByRole('button', { name: /clear history/i });
+    await userEvent.click(clearButton);
+
+    expect(screen.queryByText('Message to clear')).not.toBeInTheDocument();
+    expect(Storage.prototype.removeItem).toHaveBeenCalledWith('cogneeChatSessionId');
+    expect(mockUuidV4).toHaveBeenCalled(); // To generate new session ID
+    expect(Storage.prototype.setItem).toHaveBeenCalledWith('cogneeChatSessionId', 'new-session-after-clear');
+
+    // Verify chat history is empty
+    const chatHistoryLog = screen.getByRole('log');
+    expect(chatHistoryLog.children.length).toBe(0);
+  });
 });

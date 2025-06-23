@@ -36,24 +36,47 @@ export const getGraphSchemaSummary = async (): Promise<GraphSchemaSummary> => {
 };
 
 // QueryResponse might not be needed here if we only get tokens, or it could represent the final assembled object if desired.
-// For now, the function calls onToken, onComplete, onError, and doesn't return a Promise<QueryResponse>.
+// For now, the function calls onToken, onComplete, onError, and onSessionId (new).
 // The component will be responsible for assembling the final answer.
+
+// Define ChatMessage interface here or import from ChatInterface.tsx if structure is shared
+// For simplicity, defining it here if it's only used for return type.
+export interface ApiChatMessage { // Renaming to avoid conflict if imported from component
+  id: string;
+  type: 'user' | 'ai';
+  text: string;
+  timestamp?: string; // Neo4j stores it, can be returned
+}
+
 
 export const askQuery = async (
   question: string,
+  sessionId: string | null, // Pass current sessionId, or null if new session
   onToken: (token: string) => void,
   onComplete: () => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  onSessionId: (sessionId: string) => void // Callback to update sessionId in component
 ): Promise<void> => {
   try {
+    const requestBody: any = { question };
+    if (sessionId) {
+      requestBody.sessionId = sessionId;
+    }
+
     const response = await fetch(VITE_API_BASE_URL + '/query', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream' // Important to tell the server we expect an SSE stream
+        'Accept': 'text/event-stream'
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(requestBody),
     });
+
+    // Check for new session ID from headers
+    const newSessionId = response.headers.get('X-Session-Id');
+    if (newSessionId) {
+      onSessionId(newSessionId);
+    }
 
     if (!response.ok) {
       // Handle HTTP errors before trying to read stream
@@ -171,5 +194,21 @@ export const getNodeNeighbors = async (nodeId: string): Promise<GraphData> => {
   } catch (error: any) {
     console.error(`Error fetching neighbors for node ${nodeId}:`, error);
     throw error.response?.data || error.message || new Error(`Failed to fetch neighbors for node ${nodeId}`);
+  }
+};
+
+export const fetchChatHistory = async (sessionId: string): Promise<ApiChatMessage[]> => {
+  if (!sessionId) {
+    console.log('No session ID provided, cannot fetch chat history.');
+    return []; // Or throw an error, depending on desired behavior
+  }
+  try {
+    const response = await apiClient.get<ApiChatMessage[]>(`/chat/history/${sessionId}`);
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error fetching chat history for session ${sessionId}:`, error);
+    // Don't throw an error that breaks the UI, just return empty or log
+    // throw error.response?.data || error.message || new Error('Failed to fetch chat history');
+    return []; // Return empty on error to allow chat to continue without old history
   }
 };

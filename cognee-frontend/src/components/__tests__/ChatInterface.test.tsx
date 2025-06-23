@@ -277,4 +277,103 @@ describe('ChatInterface Component', () => {
     const chatHistoryLog = screen.getByRole('log');
     expect(chatHistoryLog.children.length).toBe(0);
   });
+
+  describe('Saved Prompts Functionality', () => {
+    const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts';
+
+    it('loads saved prompts from localStorage on mount', async () => {
+      const mockPrompts = [{ id: 'p1', name: 'Prompt 1', text: 'What is X?' }];
+      (Storage.prototype.getItem as vi.Mock).mockImplementation((key: string) => {
+        if (key === SAVED_PROMPTS_STORAGE_KEY) return JSON.stringify(mockPrompts);
+        if (key === 'cogneeChatSessionId') return 'test-session'; // For session ID loading
+        return null;
+      });
+
+      render(<ChatInterface />);
+      const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
+      await userEvent.click(managePromptsButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Prompt 1')).toBeInTheDocument();
+      });
+    });
+
+    it('allows saving a new prompt', async () => {
+      mockUuidV4.mockReturnValueOnce('prompt-uuid-1'); // For the prompt ID
+      render(<ChatInterface />);
+      const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
+      await userEvent.click(managePromptsButton);
+
+      const promptNameInput = screen.getByPlaceholderText('Prompt Name');
+      const promptTextInput = screen.getByPlaceholderText('Prompt Text (current question by default)');
+      const savePromptButton = screen.getByRole('button', { name: /save prompt/i });
+      const chatInput = screen.getByPlaceholderText(/ask a question.../i);
+
+      // First, type something into the main chat input to be the default prompt text
+      await userEvent.type(chatInput, 'This is the current question text.');
+      // Now, type a name for the prompt
+      await userEvent.type(promptNameInput, 'My Test Prompt');
+      // The textarea for prompt text should have picked up the current question.
+      // If we want to override, we type into promptTextInput. Here, we use the default.
+
+      await userEvent.click(savePromptButton);
+
+      await waitFor(() => {
+        expect(Storage.prototype.setItem).toHaveBeenCalledWith(
+          SAVED_PROMPTS_STORAGE_KEY,
+          JSON.stringify([{ id: 'prompt-uuid-1', name: 'My Test Prompt', text: 'This is the current question text.' }])
+        );
+        expect(screen.getByText('My Test Prompt')).toBeInTheDocument();
+      });
+      // Inputs should be cleared after saving
+      expect(promptNameInput).toHaveValue('');
+      // promptTextInput is a textarea, its value check is slightly different
+      expect(screen.getByPlaceholderText('Prompt Text (current question by default)')).toHaveValue('');
+    });
+
+    it('allows selecting a saved prompt to populate the chat input', async () => {
+      const mockPrompts = [{ id: 'p1', name: 'Greeting Prompt', text: 'Hello there!' }];
+      (Storage.prototype.getItem as vi.Mock).mockImplementation((key: string) => {
+        if (key === SAVED_PROMPTS_STORAGE_KEY) return JSON.stringify(mockPrompts);
+        return null;
+      });
+      render(<ChatInterface />);
+      const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
+      await userEvent.click(managePromptsButton);
+
+      const promptNameElement = await screen.findByText('Greeting Prompt');
+      await userEvent.click(promptNameElement);
+
+      expect(screen.getByPlaceholderText(/ask a question.../i)).toHaveValue('Hello there!');
+      // Prompt manager should hide after selection
+      expect(screen.queryByText('Save Current Question as Prompt:')).not.toBeInTheDocument();
+    });
+
+    it('allows deleting a saved prompt', async () => {
+      const mockPrompts = [
+        { id: 'p1', name: 'Prompt One', text: 'Text One' },
+        { id: 'p2', name: 'Prompt Two', text: 'Text Two' },
+      ];
+      (Storage.prototype.getItem as vi.Mock).mockImplementation((key: string) => {
+        if (key === SAVED_PROMPTS_STORAGE_KEY) return JSON.stringify(mockPrompts);
+        return null;
+      });
+      render(<ChatInterface />);
+      const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
+      await userEvent.click(managePromptsButton);
+
+      const deleteButtons = await screen.findAllByRole('button', { name: /delete prompt/i });
+      expect(deleteButtons.length).toBe(2);
+      await userEvent.click(deleteButtons[0]); // Delete "Prompt One"
+
+      await waitFor(() => {
+        expect(screen.queryByText('Prompt One')).not.toBeInTheDocument();
+        expect(screen.getByText('Prompt Two')).toBeInTheDocument();
+        expect(Storage.prototype.setItem).toHaveBeenCalledWith(
+          SAVED_PROMPTS_STORAGE_KEY,
+          JSON.stringify([{ id: 'p2', name: 'Prompt Two', text: 'Text Two' }])
+        );
+      });
+    });
+  });
 });

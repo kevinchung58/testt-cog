@@ -5,10 +5,17 @@ import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
 
 // const LOCAL_STORAGE_KEY = 'cogneeChatHistory'; // No longer used for history itself
 const SESSION_ID_STORAGE_KEY = 'cogneeChatSessionId';
+const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts';
 
 interface ChatMessage { // This is the component's internal ChatMessage type
   id: string;
   type: 'user' | 'ai';
+  text: string;
+}
+
+interface SavedPrompt {
+  id: string;
+  name: string;
   text: string;
   // Optional: include context items if you want to display them
   // These would need to be sent via SSE if desired with streaming text
@@ -22,9 +29,15 @@ const ChatInterface: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+  const [showPromptManager, setShowPromptManager] = useState<boolean>(false);
+  const [newPromptName, setNewPromptName] = useState<string>('');
+  const [promptToSave, setPromptToSave] = useState<string>('');
 
-  // Load sessionId on mount and fetch history
+
+  // Load sessionId, chat history, and saved prompts on mount
   useEffect(() => {
+    // Session ID
     let storedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
     if (!storedSessionId) {
       storedSessionId = uuidv4();
@@ -50,18 +63,26 @@ const ChatInterface: React.FC = () => {
       }
     };
     loadHistory();
+
+    // Load Saved Prompts
+    try {
+      const storedPrompts = localStorage.getItem(SAVED_PROMPTS_STORAGE_KEY);
+      if (storedPrompts) {
+        setSavedPrompts(JSON.parse(storedPrompts));
+      }
+    } catch (e) {
+      console.error("Error loading saved prompts from local storage:", e);
+    }
   }, []);
 
-  // This useEffect is no longer needed as history is not saved directly to local storage here.
-  // // Save history to local storage whenever it changes
-  // useEffect(() => {
-  //   try {
-  //     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chatHistory));
-  //   } catch (error) {
-  //     console.error("Error saving chat history to local storage:", error);
-  //     // Potentially alert user if storage is full or disabled
-  //   }
-  // }, [chatHistory]);
+  // Save prompts to local storage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(SAVED_PROMPTS_STORAGE_KEY, JSON.stringify(savedPrompts));
+    } catch (e) {
+      console.error("Error saving prompts to local storage:", e);
+    }
+  }, [savedPrompts]);
 
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -151,13 +172,80 @@ const ChatInterface: React.FC = () => {
     setError('');
   };
 
+  const handleSavePrompt = () => {
+    if (!promptToSave.trim()) {
+      alert('Prompt text cannot be empty.');
+      return;
+    }
+    if (!newPromptName.trim()) {
+      alert('Prompt name cannot be empty.');
+      return;
+    }
+    const newId = uuidv4();
+    setSavedPrompts(prev => [...prev, { id: newId, name: newPromptName, text: promptToSave }]);
+    setNewPromptName('');
+    setPromptToSave(''); // Clear after saving
+    //setShowPromptManager(false); // Optionally close manager after save
+  };
+
+  const handleSelectPrompt = (promptText: string) => {
+    setCurrentQuestion(promptText);
+    setShowPromptManager(false); // Close manager after selecting
+  };
+
+  const handleDeletePrompt = (promptId: string) => {
+    setSavedPrompts(prev => prev.filter(p => p.id !== promptId));
+  };
+
+
   return (
     <div className={styles.chatContainer}>
-      <div className={styles.chatHistoryControls}>
+      <div className={styles.chatControls}>
         <button onClick={handleClearHistory} className={styles.clearButton} disabled={isLoading || chatHistory.length === 0}>
           Clear History
         </button>
+        <button onClick={() => setShowPromptManager(prev => !prev)} className={styles.managePromptsButton}>
+          {showPromptManager ? 'Hide Prompts' : 'Manage Prompts'}
+        </button>
       </div>
+
+      {showPromptManager && (
+        <div className={styles.promptManager}>
+          <h4>Save Current Question as Prompt:</h4>
+          <div className={styles.savePromptForm}>
+            <input
+              type="text"
+              placeholder="Prompt Name"
+              value={newPromptName}
+              onChange={(e) => setNewPromptName(e.target.value)}
+              className={styles.promptNameInput}
+            />
+            <textarea
+              placeholder="Prompt Text (current question by default)"
+              value={promptToSave || currentQuestion} // Use currentQuestion as default text to save
+              onChange={(e) => setPromptToSave(e.target.value)}
+              rows={3}
+              className={styles.promptTextInput}
+            />
+            <button onClick={handleSavePrompt} className={styles.savePromptButton}>Save Prompt</button>
+          </div>
+
+          {savedPrompts.length > 0 && <h4>Saved Prompts:</h4>}
+          <ul className={styles.savedPromptsList}>
+            {savedPrompts.map(prompt => (
+              <li key={prompt.id} className={styles.savedPromptItem}>
+                <span className={styles.promptName} onClick={() => handleSelectPrompt(prompt.text)} title="Click to use this prompt">
+                  {prompt.name}
+                </span>
+                <button onClick={() => handleDeletePrompt(prompt.id)} className={styles.deletePromptButton} title="Delete prompt">
+                  &times;
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className={styles.chatHistory} aria-live="polite" role="log">
         {chatHistory.map((msg) => (
           <div

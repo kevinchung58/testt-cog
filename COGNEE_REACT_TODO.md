@@ -58,7 +58,7 @@
     *   [x] `KnowledgeGraphVisualizer.tsx` 中的錯誤訊息已增強，更具用戶友好性。(Error messages in `KnowledgeGraphVisualizer.tsx` enhanced for user-friendliness.)
 *   [x] **元件開發 (Component Development):**
     *   [x] `FileUpload` 元件 (Component for file upload)
-    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕) (Component for chat, including input, response display, copy button, clear history button)
+    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕、保存/使用提示功能) (Component for chat, including input, response display, copy button, clear history button, save/reuse prompts feature)
     *   [x] `KnowledgeGraphVisualizer` 元件 (Component for graph visualization)
     *   [x] `GraphDetailPanel` 元件 (Component for showing details of graph elements)
 *   [x] **狀態管理 (State Management):**
@@ -86,11 +86,12 @@
     *   [x] 前端 `ChatInterface.tsx` 管理 `sessionId` (存於 Local Storage)，並從後端加載/顯示歷史記錄。(Frontend `ChatInterface.tsx` manages `sessionId` (stored in Local Storage) and loads/displays history from backend.)
     *   [x] 後端 `/query` 端點接受 `sessionId`，並使用 Neo4j 持久化聊天歷史。 (Backend `/query` endpoint accepts `sessionId` and persists chat history using Neo4j.)
     *   [x] 允許使用者清除對話 (前端清除本地 `sessionId` 並開始新會話，後端未實現刪除歷史功能)。 (Allow users to clear conversations - frontend clears local `sessionId` and starts a new session; backend deletion not implemented.)
-*   [ ] **LLM 模型選擇 (LLM Model Selection):**
-    *   [ ] 目前固定使用 `gemini-2.0-flash` 和 `text-embedding-004`。未提供模型選擇功能。(Currently fixed to specific Gemini models. Model selection feature not available.)
+*   [x] **LLM 模型選擇 (LLM Model Selection):**
+    *   [x] 目前固定使用 `gemini-2.0-flash` 和 `text-embedding-004`。已在前端頁腳顯示此資訊。(Currently fixed to specific Gemini models. This information is displayed in the frontend footer.)
+    *   [ ] 未提供實際模型選擇功能。(Actual model selection feature not available.)
 *   [x] **提示工程 (Prompt Engineering):**
     *   [x] 後端 `query-engine.ts` 和 `graph-builder.ts` 中使用自訂提示模板 (Custom prompt templates used in backend `query-engine.ts` and `graph-builder.ts`)
-    *   [ ] (可選) 允許使用者儲存和重複使用 prompts (Optional: Allow users to save and reuse prompts) - (Not implemented)
+    *   [x] (可選) 允許使用者儲存和重複使用 prompts (前端 `ChatInterface.tsx` 使用 Local Storage 實現) (Optional: Allow users to save and reuse prompts - implemented in frontend `ChatInterface.tsx` using Local Storage)
 *   [x] **流式回應 (Streaming Responses):**
     *   [x] 後端 `/query` 使用 Server-Sent Events (SSE) (Backend `/query` uses SSE)
     *   [x] 前端 `ChatInterface.tsx` 和 `apiService.ts` 處理並逐步顯示回應 (Frontend handles and displays incremental response)
@@ -101,7 +102,7 @@
     *   [x] 後端有 `jest` 設定和一些 toolkit 測試檔案 (`*.test.ts`) (Backend has `jest` setup and some toolkit test files)
     *   [x] 已為新的後端圖譜端點添加單元測試和整合測試 (Unit and integration tests added for new backend graph endpoints)
     *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
-    *   [x] 已為前端 `ChatInterface.tsx` 和 `KnowledgeGraphVisualizer.tsx` 中與新功能/錯誤處理相關的部分添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` and `KnowledgeGraphVisualizer.tsx`.)
+    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts) and `KnowledgeGraphVisualizer.tsx` (error handling).)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)

@@ -152,6 +152,30 @@ describe('API Endpoints - POST /query', () => {
       expect(response.text).toContain('data: {"type":"kg_context","content":"Knowledge Graph Results:\\n{\\"someData\\":\\"from graph\\"}"}');
   });
 
+  it('should use default model for conversational chain if chatModelName is not provided', async () => {
+    const mockQuestion = "And what about birds?";
+    const chatHistory = [{type: "human", content: "Tell me about animals." }, {type: "ai", content: "Animals are diverse."}];
+
+    await request(app)
+        .post('/query')
+        .send({ question: mockQuestion, chat_history: chatHistory }) // No chatModelName
+        .expect(200);
+
+    expect(createConversationalChain).toHaveBeenCalledWith(mockRetriever, undefined);
+  });
+
+  it('should use default model for queryKnowledgeGraph if chatModelName is not provided', async () => {
+    const mockQuestion = "Query KG with default model";
+    mockQueryGraph.mockResolvedValue([{ someData: "default graph data" }]);
+
+    await request(app)
+        .post('/query')
+        .send({ question: mockQuestion, use_knowledge_graph: true }) // No chatModelName
+        .expect(200);
+
+    expect(mockQueryGraph).toHaveBeenCalledWith(mockQuestion, undefined, undefined);
+  });
+
   it('should return a 400 error if question is missing', async () => {
     const response = await request(app)
       .post('/query')

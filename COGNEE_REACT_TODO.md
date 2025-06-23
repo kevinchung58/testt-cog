@@ -94,7 +94,7 @@
     *   [x] 允許使用者清除對話 (前端清除本地 `sessionId` 並開始新會話，同時調用後端API刪除歷史)。 (Allow users to clear conversations - frontend clears local `sessionId`, starts a new session, and calls backend API to delete history.)
 *   [x] **LLM 模型選擇 (LLM Model Selection):**
     *   [x] 目前固定使用 `gemini-pro` 和 `text-embedding-004`。已在前端頁腳顯示此資訊，並通過後端配置使其可配置。(Currently fixed to `gemini-pro` and `text-embedding-004`. This information is displayed in the frontend footer, and made configurable via backend config.)
-    *   [x] 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)。(Backend LLM service initialization refactored to use configurable model names from `config.ts`. `/query` endpoint now accepts `chatModelName`.)
+    *   [x] 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。`/query` 端點現在接受 `chatModelName`。(Backend LLM service initialization refactored to use configurable model names from `config.ts`. `/query` endpoint now accepts `chatModelName`.)
     *   [x] 前端 `ChatInterface.tsx` 已添加模型選擇下拉框，並將所選模型傳遞給後端 `/query` API。(Frontend `ChatInterface.tsx` now has a model selection dropdown and passes the selected model to the backend `/query` API.)
     *   [ ] (下一步) 實際模型切換邏輯 (例如，如果後端支持更多模型，確保它們按預期工作)。(Next step: Actual model switching logic if backend supports more models and ensuring they work as expected).
 *   [x] **提示工程 (Prompt Engineering):**

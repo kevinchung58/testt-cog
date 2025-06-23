@@ -9,7 +9,8 @@ import {
   getNodeWithNeighbors,
   FeGraphData,
   FeGraphNode,
-  FeGraphLink
+  FeGraphLink,
+  deleteChatHistory // Import the function to be tested
 } from '../graph-builder';
 import { Document } from '@langchain/core/documents';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
@@ -183,4 +184,59 @@ describe('Graph Builder Toolkit', () => {
     });
   });
 
+  describe('deleteChatHistory', () => {
+    const sessionIdToDelete = 'test-session-id-to-delete';
+
+    beforeEach(() => {
+      // Reset the transaction.run mock for these specific tests
+      mockTransaction.run.mockReset();
+      // Ensure writeTransaction is called with a function that uses our mockTransaction
+      mockSession.writeTransaction = jest.fn(async (callback) => callback(mockTransaction));
+    });
+
+    test('should execute correct Cypher queries to delete messages and session', async () => {
+      await deleteChatHistory(sessionIdToDelete);
+
+      expect(mockSession.writeTransaction).toHaveBeenCalledTimes(1); // Should be one transaction now with two .run calls
+
+      // Check the first .run call for deleting messages and their relationships
+      expect(mockTransaction.run).toHaveBeenCalledWith(
+        expect.stringContaining('MATCH (s:ChatSession {sessionId: $sessionId})-[hr:HAS_MESSAGE]->(msg:ChatMessage)'),
+        { sessionId: sessionIdToDelete }
+      );
+      expect(mockTransaction.run).toHaveBeenCalledWith(
+        expect.stringContaining('OPTIONAL MATCH (msg)-[nr:NEXT_MESSAGE]-()'),
+        { sessionId: sessionIdToDelete }
+      );
+       expect(mockTransaction.run).toHaveBeenCalledWith(
+        expect.stringContaining('DETACH DELETE msg, nr'), // This is part of the first query
+        { sessionId: sessionIdToDelete }
+      );
+
+      // Check the second .run call for deleting the session node
+      expect(mockTransaction.run).toHaveBeenCalledWith(
+        expect.stringContaining('MATCH (s:ChatSession {sessionId: $sessionId}) DETACH DELETE s'),
+        { sessionId: sessionIdToDelete }
+      );
+
+      // Verify it's called twice within the transaction
+      expect(mockTransaction.run).toHaveBeenCalledTimes(2);
+    });
+
+    test('should not throw if session or messages do not exist', async () => {
+      // Mock transaction.run to simulate no nodes found (e.g., returns empty results or summary indicating no changes)
+      mockTransaction.run.mockResolvedValue({ records: [], summary: { counters: { nodesDeleted: () => 0, relationshipsDeleted: () => 0 } } } as unknown as QueryResult);
+
+      await expect(deleteChatHistory(sessionIdToDelete)).resolves.not.toThrow();
+      expect(mockTransaction.run).toHaveBeenCalledTimes(2); // Still attempts both deletes
+    });
+
+    test('should throw an error if Neo4j operation fails', async () => {
+      const dbError = new Error('Neo4j connection failed');
+      mockTransaction.run.mockRejectedValueOnce(dbError); // Simulate failure on the first delete query
+
+      await expect(deleteChatHistory(sessionIdToDelete)).rejects.toThrow('Failed to delete chat history: Neo4j connection failed');
+      expect(mockTransaction.run).toHaveBeenCalledTimes(1); // Should fail on the first attempt
+    });
+  });
 });

@@ -109,6 +109,7 @@
     *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
     *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能 - 後端集成、清除歷史記錄) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts with backend integration, clear history) and `KnowledgeGraphVisualizer.tsx` (error handling).)
     *   [x] 已為後端保存提示端點 (`/prompts`) 和刪除聊天歷史端點 (`/chat/history/:sessionId`) 添加整合測試。(Integration tests added for backend saved prompt and delete chat history endpoints.)
+    *   [x] 後端整合測試已重構為多個文件以提高組織性。 (Backend integration tests refactored into multiple files for better organization.)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
@@ -154,5 +155,6 @@
 *   [x] ~~**API 文件:** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔，包括刪除聊天歷史端點。~~ (已完成)
 *   [x] ~~**對話管理:** 清除歷史記錄功能現在也調用後端API刪除歷史記錄。~~ (已完成)
 *   [x] ~~**測試:** 為後端刪除聊天歷史端點添加測試，並更新前端清除歷史測試。~~ (已完成)
+*   [x] ~~**測試:** 後端整合測試已重構為多個文件以提高組織性。~~ (已完成)
 
 ```

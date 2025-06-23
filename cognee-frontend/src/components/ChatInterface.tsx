@@ -1,9 +1,11 @@
-import React, { useState, FormEvent, ChangeEvent, useRef } from 'react'; // Added useRef
-import { askQuery } from '../services/apiService'; // QueryResponse no longer directly used by handleSubmit
-import styles from './ChatInterface.module.css'; // Import CSS module
+import React, { useState, FormEvent, ChangeEvent, useEffect, useCallback } from 'react';
+import { askQuery } from '../services/apiService';
+import styles from './ChatInterface.module.css';
+
+const LOCAL_STORAGE_KEY = 'cogneeChatHistory';
 
 interface ChatMessage {
-  id: string; // For key prop in React
+  id: string;
   type: 'user' | 'ai';
   text: string;
   // Optional: include context items if you want to display them
@@ -14,13 +16,39 @@ interface ChatMessage {
 
 const ChatInterface: React.FC = () => {
   const [currentQuestion, setCurrentQuestion] = useState<string>('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => {
+    // Load history from local storage on initial load
+    try {
+      const storedHistory = localStorage.getItem(LOCAL_STORAGE_KEY);
+      return storedHistory ? JSON.parse(storedHistory) : [];
+    } catch (error) {
+      console.error("Error loading chat history from local storage:", error);
+      return [];
+    }
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+
+  // Save history to local storage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chatHistory));
+    } catch (error) {
+      console.error("Error saving chat history to local storage:", error);
+      // Potentially alert user if storage is full or disabled
+    }
+  }, [chatHistory]);
+
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     setCurrentQuestion(event.target.value);
   };
+
+  // Wrapped setChatHistory to ensure atomicity for adding user and initial AI message
+  const appendToHistory = useCallback((newMessage: ChatMessage | ChatMessage[]) => {
+    setChatHistory(prevHistory => Array.isArray(newMessage) ? [...prevHistory, ...newMessage] : [...prevHistory, newMessage]);
+  }, []);
+
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,18 +63,19 @@ const ChatInterface: React.FC = () => {
       text: currentQuestion.trim(),
     };
 
-    setChatHistory(prevHistory => [...prevHistory, userMessage]);
-    setIsLoading(true);
-    setError('');
-    setCurrentQuestion(''); // Clear input field immediately after sending
-
     const aiMessageId = `ai-${Date.now()}`;
     const initialAiMessage: ChatMessage = {
       id: aiMessageId,
       type: 'ai',
       text: '', // Start with empty text, tokens will append here
     };
-    setChatHistory(prevHistory => [...prevHistory, initialAiMessage]);
+
+    // Add both user message and initial AI message placeholder together
+    appendToHistory([userMessage, initialAiMessage]);
+
+    setIsLoading(true);
+    setError('');
+    setCurrentQuestion(''); // Clear input field immediately after sending
 
     const onToken = (token: string) => {
       setChatHistory(prevHistory =>
@@ -74,21 +103,42 @@ const ChatInterface: React.FC = () => {
       setIsLoading(false);
     };
 
-    // No await here, as askQuery now uses callbacks for stream handling
     askQuery(userMessage.text, onToken, onComplete, onError);
-    // The function itself is async due to operations inside it, but we don't await the stream here.
+  };
+
+  const handleClearHistory = () => {
+    setChatHistory([]);
+    // localStorage.removeItem(LOCAL_STORAGE_KEY); // This is handled by the useEffect when chatHistory becomes []
+    setError(''); // Also clear any errors
   };
 
   return (
     <div className={styles.chatContainer}>
-      <div className={styles.chatHistory} aria-live="polite" role="log"> {/* Added role="log" */}
+      <div className={styles.chatHistoryControls}>
+        <button onClick={handleClearHistory} className={styles.clearButton} disabled={isLoading || chatHistory.length === 0}>
+          Clear History
+        </button>
+      </div>
+      <div className={styles.chatHistory} aria-live="polite" role="log">
         {chatHistory.map((msg) => (
           <div
             key={msg.id}
             className={`${styles.messageWrapper} ${msg.type === 'user' ? styles.userMessage : styles.aiMessage}`}
           >
             <div className={styles.messageContent}>
-              <p className={styles.messageLabel}>{msg.type === 'user' ? 'You' : 'AI'}:</p>
+              <div className={styles.messageHeader}>
+                <p className={styles.messageLabel}>{msg.type === 'user' ? 'You' : 'AI'}:</p>
+                {msg.type === 'ai' && msg.text && (
+                  <button
+                    onClick={() => navigator.clipboard.writeText(msg.text)}
+                    className={styles.copyButton}
+                    title="Copy AI response"
+                    aria-label="Copy AI response to clipboard"
+                  >
+                    Copy
+                  </button>
+                )}
+              </div>
               <p className={styles.messageText}>{msg.text}</p>
               {/* Optional: Display context for AI messages for debugging */}
               {/* {msg.type === 'ai' && msg.graphContext && (

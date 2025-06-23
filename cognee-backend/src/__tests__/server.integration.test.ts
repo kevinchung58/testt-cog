@@ -19,10 +19,31 @@ jest.mock('../toolkit/query-engine', () => ({
   createConversationalChain: jest.fn(),
 }));
 
+import { processFileToDocuments } from '../toolkit/data-processor';
+
 jest.mock('../toolkit/vector-store', () => ({
+  ...jest.requireActual('../toolkit/vector-store'),
   createRetriever: jest.fn(),
-  // addDocumentsToVectorStore is used by /ingest, not tested here yet
+  addDocuments: jest.fn(), // Mock for /ingest: addDocumentsToVectorStore is an alias
 }));
+
+jest.mock('../toolkit/data-processor', () => ({
+  ...jest.requireActual('../toolkit/data-processor'),
+  processFileToDocuments: jest.fn(),
+}));
+
+// Update graph-builder mock to include documentsToGraph for /ingest
+jest.mock('../toolkit/graph-builder', () => {
+  const actual = jest.requireActual('../toolkit/graph-builder');
+  return {
+    ...actual,
+    getGraphOverview: jest.fn(),
+    getNodeWithNeighbors: jest.fn(),
+    fetchGraphSchemaSummary: jest.fn(),
+    queryGraph: jest.fn(),
+    documentsToGraph: jest.fn(), // Mock for /ingest
+  };
+});
 
 
 // We need to import the app from server.ts.
@@ -276,4 +297,114 @@ describe('GET /graph/node/:id/neighbors', () => {
 // These tests would require mocking 'multer' for file uploads, 'fs' for file operations,
 // and the relevant toolkit functions (processFileToDocuments, addDocumentsToVectorStore, documentsToGraph for /ingest;
 // fetchNeo4jGraphSchema for /graph-schema).
+
+describe('GET /graph-schema', () => {
+  const mockSchema = { nodeLabels: ['Person', 'Document'], relationshipTypes: ['APPEARS_IN'] };
+  let fetchGraphSchemaSummaryMock: jest.Mock;
+
+
+  beforeEach(() => {
+    // graph-builder is already mocked. We need to get the specific mock function.
+    fetchGraphSchemaSummaryMock = jest.requireMock('../toolkit/graph-builder').fetchGraphSchemaSummary;
+    fetchGraphSchemaSummaryMock.mockReset();
+  });
+
+  it('should return 200 with graph schema summary', async () => {
+    fetchGraphSchemaSummaryMock.mockResolvedValue(mockSchema);
+    const response = await request(app)
+      .get('/graph-schema')
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body).toEqual(mockSchema);
+    expect(fetchGraphSchemaSummaryMock).toHaveBeenCalled();
+  });
+
+  it('should return 500 if fetchGraphSchemaSummary fails', async () => {
+    fetchGraphSchemaSummaryMock.mockRejectedValue(new Error('Schema fetch failed'));
+    const response = await request(app)
+      .get('/graph-schema')
+      .expect('Content-Type', /json/)
+      .expect(500);
+    expect(response.body.message).toContain('Failed to fetch graph schema');
+  });
+});
+
+describe('POST /ingest', () => {
+  let processFileToDocumentsMock: jest.Mock;
+  let addDocumentsToVectorStoreMock: jest.Mock;
+  let documentsToGraphMock: jest.Mock;
+
+  beforeEach(() => {
+    processFileToDocumentsMock = jest.requireMock('../toolkit/data-processor').processFileToDocuments;
+    addDocumentsToVectorStoreMock = jest.requireMock('../toolkit/vector-store').addDocuments;
+    documentsToGraphMock = jest.requireMock('../toolkit/graph-builder').documentsToGraph;
+
+    processFileToDocumentsMock.mockReset();
+    addDocumentsToVectorStoreMock.mockReset();
+    documentsToGraphMock.mockReset();
+  });
+
+  it('should return 200 and process file when a file is uploaded', async () => {
+    const mockDocuments = [{ pageContent: 'Test content', metadata: {} }];
+    processFileToDocumentsMock.mockResolvedValue(mockDocuments);
+    addDocumentsToVectorStoreMock.mockResolvedValue(undefined);
+    documentsToGraphMock.mockResolvedValue(undefined);
+
+    const response = await request(app)
+      .post('/ingest')
+      .attach('file', Buffer.from('test content'), 'test.txt') // supertest .attach() for file uploads
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body.message).toContain('File ingested successfully');
+    expect(response.body.documentsProcessed).toBe(mockDocuments.length);
+    expect(processFileToDocumentsMock).toHaveBeenCalled();
+    expect(addDocumentsToVectorStoreMock).toHaveBeenCalledWith(mockDocuments, expect.any(String)); // Default collection name
+    expect(documentsToGraphMock).toHaveBeenCalledWith(mockDocuments); // Default buildGraph=true
+  });
+
+  it('should skip graph building if buildGraph=false query param is passed', async () => {
+    processFileToDocumentsMock.mockResolvedValue([{ pageContent: 'Test content', metadata: {} }]);
+    addDocumentsToVectorStoreMock.mockResolvedValue(undefined);
+     // documentsToGraphMock should not be called
+
+    await request(app)
+      .post('/ingest?buildGraph=false')
+      .attach('file', Buffer.from('test content'), 'test.txt')
+      .expect(200);
+
+    expect(documentsToGraphMock).not.toHaveBeenCalled();
+  });
+
+  it('should return 400 if no file is uploaded', async () => {
+    const response = await request(app)
+      .post('/ingest')
+      .expect('Content-Type', /json/)
+      .expect(400);
+    expect(response.body.message).toContain('No file uploaded');
+  });
+
+  it('should return 400 if file processing yields no documents', async () => {
+    processFileToDocumentsMock.mockResolvedValue([]); // Simulate no documents extracted
+
+    const response = await request(app)
+      .post('/ingest')
+      .attach('file', Buffer.from('empty or unreadable'), 'test.txt')
+      .expect('Content-Type', /json/)
+      .expect(400);
+
+    expect(response.body.message).toContain('File processed, but no content could be extracted');
+  });
+
+  it('should return 500 if processFileToDocuments fails', async () => {
+    processFileToDocumentsMock.mockRejectedValue(new Error('Processing error'));
+    const response = await request(app)
+      .post('/ingest')
+      .attach('file', Buffer.from('test content'), 'test.txt')
+      .expect('Content-Type', /json/)
+      .expect(500);
+    expect(response.body.message).toContain('Error processing file');
+  });
+});
 });

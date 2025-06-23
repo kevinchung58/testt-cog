@@ -49,6 +49,29 @@
  margin: 0; /* Remove default paragraph margin */
 }
 
+.messageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.copyButton {
+  background: none;
+  border: 1px solid var(--secondary-text-color, #6c757d);
+  color: var(--secondary-text-color, #6c757d);
+  padding: 2px 6px;
+  font-size: 0.75em;
+  border-radius: var(--border-radius-sm, 3px);
+  cursor: pointer;
+  margin-left: 10px; /* Space from the label */
+}
+
+.copyButton:hover {
+  background-color: var(--border-color, #e9ecef); /* Use a light hover effect */
+}
+
+
 .chatForm {
   display: flex;
 }

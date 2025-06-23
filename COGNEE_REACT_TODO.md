@@ -80,9 +80,9 @@
 **進階功能與改進 (Advanced Features & Improvements)**
 
 *   [x] **對話管理 (Conversation Management):**
-    *   [x] 前端 `ChatInterface.tsx` 維護聊天歷史狀態 (Frontend `ChatInterface.tsx` maintains chat history state)
-    *   [ ] 後端 `/query` 端點接受 `chat_history`，但未實現持久化儲存 (Backend `/query` endpoint accepts `chat_history` but persistence is not implemented)
-    *   [ ] 允許使用者清除或儲存對話 (Allow users to clear or save conversations) - (Not implemented)
+    *   [x] 前端 `ChatInterface.tsx` 維護聊天歷史狀態，並使用 Local Storage 進行持久化。(Frontend `ChatInterface.tsx` maintains chat history state and persists it using Local Storage.)
+    *   [ ] 後端 `/query` 端點接受 `chat_history`，但未實現伺服器端持久化儲存 (Backend `/query` endpoint accepts `chat_history` but server-side persistence is not implemented)
+    *   [x] 允許使用者清除對話 (前端已實現 Local Storage 清除) (Allow users to clear conversations - frontend Local Storage clearing implemented)
 *   [ ] **LLM 模型選擇 (LLM Model Selection):**
     *   [ ] 目前固定使用 `gemini-2.0-flash` 和 `text-embedding-004`。未提供模型選擇功能。(Currently fixed to specific Gemini models. Model selection feature not available.)
 *   [x] **提示工程 (Prompt Engineering):**
@@ -97,7 +97,8 @@
     *   [x] 前端有 `vitest` 設定和一些元件測試檔案 (`*.test.tsx`) (Frontend has `vitest` setup and some component test files)
     *   [x] 後端有 `jest` 設定和一些 toolkit 測試檔案 (`*.test.ts`) (Backend has `jest` setup and some toolkit test files)
     *   [x] 已為新的後端圖譜端點添加單元測試和整合測試 (Unit and integration tests added for new backend graph endpoints)
-    *   [ ] **前端測試:** 檢查 `KnowledgeGraphVisualizer.tsx` 的測試是否需要因 API 服務層的（底層）端點變化而更新，即使函數簽名保持不變。(Review if tests for `KnowledgeGraphVisualizer.tsx` need updates due to underlying API endpoint changes, even if service function signatures remained the same.)
+    *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
+    *   [ ] **前端測試:** 檢查 `KnowledgeGraphVisualizer.tsx` 和 `ChatInterface.tsx` 的測試是否需要更新以反映新功能和改進。(Review if tests for `KnowledgeGraphVisualizer.tsx` and `ChatInterface.tsx` need updates to reflect new features/improvements.)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
@@ -133,11 +134,11 @@
     *   [x] ~~**(高優先級)** 解決 `KnowledgeGraphVisualizer.tsx` 對已移除的後端端點 (`/graph-data`, `/node-neighbors/:nodeId`) 的依賴。方案可能包括：~~ (已完成 - 選擇方案B並實施)
         *   [ ] ~~修改 `KnowledgeGraphVisualizer.tsx` 以使用現有的 `/query-graph` 端點（可能需要調整前端邏輯以適應自然語言查詢）。~~
         *   [x] ~~或，在後端重新實現 `/graph-data` (用於一般搜尋/初始視圖) 和 `/node-neighbors/:nodeId` (用於節點擴展) 端點，使其與 `graph-builder.ts` 中的 Neo4j 功能對接。~~ (已完成，新端點為 `/graph/overview` 和 `/graph/node/:id/neighbors`)
-*   [ ] **前端:** `KnowledgeGraphVisualizer.tsx` - `fetchData` 和 `handleNodeDoubleClick` 中的錯誤處理可以更細緻地向使用者顯示問題所在。 (Frontend: Error handling in `KnowledgeGraphVisualizer.tsx` for `fetchData` and `handleNodeDoubleClick` could be more user-friendly in displaying what went wrong.)
-*   [ ] **對話歷史持久化:** 考慮是否需要在後端或瀏覽器本地儲存中實現對話歷史的持久化。 (Consider implementing persistence for chat history, either on the backend or in browser local storage.)
-*   [ ] **測試覆蓋率:** 提升前後端的單元測試和整合測試覆蓋率 (除了已為圖譜端點添加的測試外)。 (Improve unit and integration test coverage for both frontend and backend beyond what was added for graph endpoints.)
-*   [ ] **(可選) UI/UX 改進:**
-    *   [ ] `KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。 (Usability of filters in `KnowledgeGraphVisualizer` on mobile devices.)
-    *   [ ] `ChatInterface`: 允許複製 AI 回應。 (Allow copying AI responses in `ChatInterface`.)
+*   [x] ~~**前端:** `KnowledgeGraphVisualizer.tsx` - `fetchData` 和 `handleNodeDoubleClick` 中的錯誤處理可以更細緻地向使用者顯示問題所在。~~ (已完成)
+*   [x] ~~**對話歷史持久化:** 考慮是否需要在後端或瀏覽器本地儲存中實現對話歷史的持久化。~~ (已完成 - Local Storage)
+*   [x] ~~**測試覆蓋率:** 提升前後端的單元測試和整合測試覆蓋率 (除了已為圖譜端點添加的測試外)。~~ (已為 `/ingest` 和 `/graph-schema` 添加後端測試)
+*   [x] **(可選) UI/UX 改進:**
+    *   [x] ~~`KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。~~ (已評估，現有 CSS 基本可接受)
+    *   [x] ~~`ChatInterface`: 允許複製 AI 回應。~~ (已完成)
 
 ```

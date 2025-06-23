@@ -6,13 +6,14 @@ import {
   apiGetSavedPrompts,
   apiSaveUserPrompt,
   apiDeleteSavedPrompt,
-  SavedPrompt as ApiSavedPrompt, // Use the interface from apiService
-  apiDeleteChatHistory // Import the new service function
+  SavedPrompt as ApiSavedPrompt,
+  apiDeleteChatHistory
 } from '../services/apiService';
+import { AVAILABLE_CHAT_MODELS, DEFAULT_SELECTED_CHAT_MODEL } from '../../config/models.config'; // Import model config
 import styles from './ChatInterface.module.css';
-import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
+import { v4 as uuidv4 } from 'uuid';
 
-// const LOCAL_STORAGE_KEY = 'cogneeChatHistory'; // No longer used for history itself
+// const LOCAL_STORAGE_KEY = 'cogneeChatHistory';
 const SESSION_ID_STORAGE_KEY = 'cogneeChatSessionId';
 // const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts'; // No longer used
 
@@ -39,6 +40,7 @@ const ChatInterface: React.FC = () => {
   const [showPromptManager, setShowPromptManager] = useState<boolean>(false);
   const [newPromptName, setNewPromptName] = useState<string>('');
   const [promptToSave, setPromptToSave] = useState<string>('');
+  const [selectedChatModel, setSelectedChatModel] = useState<string>(DEFAULT_SELECTED_CHAT_MODEL);
 
 
   // Load sessionId, chat history, and saved prompts on mount
@@ -157,7 +159,8 @@ const ChatInterface: React.FC = () => {
       setIsLoading(false);
     };
 
-    askQuery(userMessage.text, sessionId, onToken, onComplete, onError, handleNewSessionId);
+    // Pass the selectedChatModel to askQuery
+    askQuery(userMessage.text, sessionId, onToken, onComplete, onError, handleNewSessionId, selectedChatModel);
   };
 
   const handleClearHistory = async () => {
@@ -221,12 +224,28 @@ const ChatInterface: React.FC = () => {
   return (
     <div className={styles.chatContainer}>
       <div className={styles.chatControls}>
-        <button onClick={handleClearHistory} className={styles.clearButton} disabled={isLoading || chatHistory.length === 0}>
-          Clear History
-        </button>
-        <button onClick={() => setShowPromptManager(prev => !prev)} className={styles.managePromptsButton}>
-          {showPromptManager ? 'Hide Prompts' : 'Manage Prompts'}
-        </button>
+        <div> {/* Group for left-aligned controls */}
+          <button onClick={handleClearHistory} className={styles.clearButton} disabled={isLoading || chatHistory.length === 0}>
+            Clear History
+          </button>
+          <button onClick={() => setShowPromptManager(prev => !prev)} className={styles.managePromptsButton}>
+            {showPromptManager ? 'Hide Prompts' : 'Manage Prompts'}
+          </button>
+        </div>
+        <div className={styles.modelSelectorContainer}>
+          <label htmlFor="model-select" className={styles.modelSelectorLabel}>Chat Model:</label>
+          <select
+            id="model-select"
+            value={selectedChatModel}
+            onChange={(e) => setSelectedChatModel(e.target.value)}
+            className={styles.modelSelector}
+            disabled={isLoading}
+          >
+            {AVAILABLE_CHAT_MODELS.map(modelName => (
+              <option key={modelName} value={modelName}>{modelName}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {showPromptManager && (

@@ -62,7 +62,7 @@
     *   [x] `KnowledgeGraphVisualizer.tsx` 中的錯誤訊息已增強，更具用戶友好性。(Error messages in `KnowledgeGraphVisualizer.tsx` enhanced for user-friendliness.)
 *   [x] **元件開發 (Component Development):**
     *   [x] `FileUpload` 元件 (Component for file upload)
-    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕、保存/使用提示功能 - 後端持久化) (Component for chat, including input, response display, copy button, clear history button, save/reuse prompts feature - backend persisted)
+    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕、保存/使用提示功能 - 後端持久化、模型選擇下拉框) (Component for chat, including input, response display, copy button, clear history button, save/reuse prompts feature - backend persisted, model selection dropdown)
     *   [x] `KnowledgeGraphVisualizer` 元件 (Component for graph visualization)
     *   [x] `GraphDetailPanel` 元件 (Component for showing details of graph elements)
 *   [x] **狀態管理 (State Management):**
@@ -76,6 +76,7 @@
         *   [x] `apiService.ts` 中的 `getGraphData` 和 `getNodeNeighbors` 已更新為分別呼叫新的 `/graph/overview` 和 `/graph/node/:id/neighbors` 端點。(`getGraphData` and `getNodeNeighbors` in `apiService.ts` updated to call new `/graph/overview` and `/graph/node/:id/neighbors` endpoints respectively.)
         *   [x] `apiService.ts` 中新增 `fetchChatHistory` 和 `apiDeleteChatHistory` 函式，並修改 `askQuery` 以處理 `sessionId`。(Added `fetchChatHistory`, `apiDeleteChatHistory` and modified `askQuery` in `apiService.ts` to handle `sessionId`.)
         *   [x] `apiService.ts` 中新增用於保存/獲取/刪除提示的函式 (`apiSaveUserPrompt`, `apiGetSavedPrompts`, `apiDeleteSavedPrompt`)。(Added functions for saving/getting/deleting prompts in `apiService.ts`.)
+        *   [x] `apiService.ts` 中 `askQuery` 函式已更新以接受 `chatModelName` 參數。(Updated `askQuery` in `apiService.ts` to accept `chatModelName` parameter.)
 *   [x] **表單處理 (Form Handling):**
     *   [x] `FileUpload.tsx` 和 `ChatInterface.tsx` 中擷取使用者輸入並處理提交事件 (User input capture and form submission handled in `FileUpload.tsx` and `ChatInterface.tsx`)
 *   [x] **渲染 LLM 回應 (Rendering LLM Response):**
@@ -94,7 +95,8 @@
 *   [x] **LLM 模型選擇 (LLM Model Selection):**
     *   [x] 目前固定使用 `gemini-pro` 和 `text-embedding-004`。已在前端頁腳顯示此資訊，並通過後端配置使其可配置。(Currently fixed to `gemini-pro` and `text-embedding-004`. This information is displayed in the frontend footer, and made configurable via backend config.)
     *   [x] 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)。(Backend LLM service initialization refactored to use configurable model names from `config.ts`. `/query` endpoint now accepts `chatModelName`.)
-    *   [ ] 未提供實際模型選擇功能。(Actual model selection feature not available.)
+    *   [x] 前端 `ChatInterface.tsx` 已添加模型選擇下拉框，並將所選模型傳遞給後端 `/query` API。(Frontend `ChatInterface.tsx` now has a model selection dropdown and passes the selected model to the backend `/query` API.)
+    *   [ ] (下一步) 實際模型切換邏輯 (例如，如果後端支持更多模型，確保它們按預期工作)。(Next step: Actual model switching logic if backend supports more models and ensuring they work as expected).
 *   [x] **提示工程 (Prompt Engineering):**
     *   [x] 後端 `query-engine.ts` 和 `graph-builder.ts` 中使用自訂提示模板 (Custom prompt templates used in backend `query-engine.ts` and `graph-builder.ts`)
     *   [x] (可選) 允許使用者儲存和重複使用 prompts (已使用 Neo4j 實現後端持久化，並更新前端以使用此功能) (Optional: Allow users to save and reuse prompts - backend persistence with Neo4j implemented and frontend updated.)
@@ -108,7 +110,7 @@
     *   [x] 後端有 `jest` 設定和一些 toolkit 測試檔案 (`*.test.ts`) (Backend has `jest` setup and some toolkit test files)
     *   [x] 已為新的後端圖譜端點添加單元測試和整合測試 (Unit and integration tests added for new backend graph endpoints)
     *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
-    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能 - 後端集成、清除歷史記錄) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts with backend integration, clear history) and `KnowledgeGraphVisualizer.tsx` (error handling).)
+    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能 - 後端集成、清除歷史記錄、模型選擇UI) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts with backend integration, clear history, model selection UI) and `KnowledgeGraphVisualizer.tsx` (error handling).)
     *   [x] 已為後端保存提示端點 (`/prompts`) 和刪除聊天歷史端點 (`/chat/history/:sessionId`) 添加整合測試。(Integration tests added for backend saved prompt and delete chat history endpoints.)
     *   [x] 後端整合測試已重構為多個文件以提高組織性。 (Backend integration tests refactored into multiple files for better organization.)
     *   [x] 後端單元測試已更新以反映對LLM/嵌入模型名稱的可配置性。(Backend unit tests updated for configurable LLM/embedding model names.)
@@ -161,5 +163,6 @@
 *   [x] ~~**測試:** 後端整合測試已重構為多個文件以提高組織性。~~ (已完成)
 *   [x] ~~**LLM整合:** 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)~~ (已完成)
 *   [x] ~~**測試:** 後端單元測試和整合測試已更新以反映對LLM模型名稱的可配置性/參數化。~~ (已完成)
+*   [x] ~~**前端開發:** `ChatInterface.tsx` 已添加模型選擇下拉框，並將所選模型傳遞給後端 `/query` API。相關測試已更新。~~ (已完成)
 
 ```

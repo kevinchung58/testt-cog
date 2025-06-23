@@ -51,16 +51,20 @@ export interface ApiChatMessage { // Renaming to avoid conflict if imported from
 
 export const askQuery = async (
   question: string,
-  sessionId: string | null, // Pass current sessionId, or null if new session
+  sessionId: string | null,
   onToken: (token: string) => void,
   onComplete: () => void,
   onError: (error: Error) => void,
-  onSessionId: (sessionId: string) => void // Callback to update sessionId in component
+  onSessionId: (sessionId: string) => void,
+  chatModelName?: string // Added optional chatModelName
 ): Promise<void> => {
   try {
     const requestBody: any = { question };
     if (sessionId) {
       requestBody.sessionId = sessionId;
+    }
+    if (chatModelName) { // Add chatModelName to request body if provided
+      requestBody.chatModelName = chatModelName;
     }
 
     const response = await fetch(VITE_API_BASE_URL + '/query', {

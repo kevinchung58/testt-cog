@@ -36,18 +36,19 @@ try {
 }
 
 // Initialize LLM for graph operations
-function initializeGraphLlm(): ChatGoogleGenerativeAI | undefined {
+function createGraphLlmInstance(modelName?: string): ChatGoogleGenerativeAI | undefined {
+  const effectiveModelName = modelName || DEFAULT_CHAT_MODEL_NAME;
   if (GEMINI_API_KEY) {
     try {
       const model = new ChatGoogleGenerativeAI({
         apiKey: GEMINI_API_KEY,
-        modelName: DEFAULT_CHAT_MODEL_NAME, // Use configured model
+        modelName: effectiveModelName,
         temperature: 0.2, // Slightly lower temp for more deterministic graph structure generation
       });
-      console.log(`ChatGoogleGenerativeAI initialized with model ${DEFAULT_CHAT_MODEL_NAME} for graph-builder.ts`);
+      console.log(`ChatGoogleGenerativeAI instance created with model ${effectiveModelName} for graph-builder.ts`);
       return model;
     } catch (error) {
-      console.error(`Failed to initialize ChatGoogleGenerativeAI for graph-builder with model ${DEFAULT_CHAT_MODEL_NAME}:`, error);
+      console.error(`Failed to initialize ChatGoogleGenerativeAI for graph-builder with model ${effectiveModelName}:`, error);
       return undefined;
     }
   } else {
@@ -56,7 +57,7 @@ function initializeGraphLlm(): ChatGoogleGenerativeAI | undefined {
   }
 }
 
-llm = initializeGraphLlm();
+llm = createGraphLlmInstance(); // Initialize global llm with default
 
 function getDriverInstance(): Driver {
   if (!driver) {
@@ -71,12 +72,20 @@ function getDriverInstance(): Driver {
   return driver;
 }
 
-function getLlmInstance(): ChatGoogleGenerativeAI { // Renamed from getInitializedLlm for consistency
-  if (!llm) {
-    console.log("Attempting to re-initialize LLM in graph-builder's getLlmInstance...");
-    llm = initializeGraphLlm();
+function getLlmInstance(modelName?: string): ChatGoogleGenerativeAI {
+  if (modelName && modelName !== DEFAULT_CHAT_MODEL_NAME) {
+    const specificLlm = createGraphLlmInstance(modelName);
+    if (specificLlm) {
+      return specificLlm;
+    }
+    console.warn(`Failed to create specific LLM ${modelName} for graph operations. Falling back to default.`);
+  }
+
+  if (!llm) { // 'llm' here refers to the global default instance for graph-builder
+    console.log("Attempting to re-initialize default LLM in graph-builder's getLlmInstance...");
+    llm = createGraphLlmInstance(); // Initialize with default
     if (!llm) {
-      throw new Error('LLM not initialized in graph-builder and re-initialization failed. GEMINI_API_KEY might be missing or chat model name is invalid.');
+      throw new Error('Default LLM for graph-builder not initialized and re-initialization failed. GEMINI_API_KEY might be missing or default chat model name is invalid.');
     }
   }
   return llm;
@@ -556,8 +565,8 @@ Text to process:
 JSON Output:`;
 
 
-export async function extractGraphElementsFromDocument(document: Document): Promise<GraphElements> {
-  const currentLlm = getLlmInstance();
+export async function extractGraphElementsFromDocument(document: Document, chatModelName?: string): Promise<GraphElements> {
+  const currentLlm = getLlmInstance(chatModelName);
   const prompt = ChatPromptTemplate.fromMessages([
     new SystemMessage("You are an expert in knowledge graph extraction. Your output must be a single valid JSON object with 'nodes' and 'relationships' keys, as per the user's instructions. Do not include any other text or markdown formatting."),
     new HumanMessage(EXTRACT_GRAPH_PROMPT_TEMPLATE),
@@ -699,8 +708,8 @@ Schema:
 Question: {question}
 Cypher Query:\`;
 
-export async function queryGraph(naturalLanguageQuestion: string, graphSchemaSummary?: string): Promise<any[]> {
-  const currentLlm = getLlmInstance();
+export async function queryGraph(naturalLanguageQuestion: string, graphSchemaSummary?: string, chatModelName?: string): Promise<any[]> {
+  const currentLlm = getLlmInstance(chatModelName);
   let schemaForPrompt = graphSchemaSummary;
 
   if (!schemaForPrompt) {

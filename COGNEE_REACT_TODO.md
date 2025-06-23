@@ -30,7 +30,7 @@
     *   [x] API 金鑰管理透過 `.env` 檔案和 `src/config.ts` 處理 (API key management via `.env` file and `src/config.ts`)
 *   [x] **API 端點設計 (API Endpoint Design):**
     *   [x] `POST /ingest`: 接收檔案，處理並存儲到向量數據庫，可選建立知識圖譜 (Receives file, processes, stores in vector DB, optionally builds knowledge graph)
-    *   [x] `POST /query`: 接收問題（可選聊天歷史、知識圖譜使用標誌、會話ID），與 LLM 互動，串流回傳結果，並保存聊天訊息至Neo4j。(Receives question (optional chat history, KG usage flag, session ID), interacts with LLM, streams back result using SSE, and saves chat messages to Neo4j.)
+    *   [x] `POST /query`: 接收問題（可選聊天歷史、知識圖譜使用標誌、會話ID、聊天模型名稱），與 LLM 互動，串流回傳結果，並保存聊天訊息至Neo4j。(Receives question (optional chat history, KG usage flag, session ID, chat model name), interacts with LLM, streams back result using SSE, and saves chat messages to Neo4j.)
     *   [x] `GET /graph-schema`: 獲取 Neo4j 圖譜摘要 (Get Neo4j graph schema summary)
     *   [x] `POST /query-graph`: 使用自然語言查詢知識圖譜 (Query knowledge graph with natural language)
     *   [x] `GET /graph/overview`: (新增) 獲取圖譜概覽數據，可選搜索詞和限制 (New: Get graph overview data, optional search term and limit)
@@ -92,8 +92,8 @@
     *   [x] 後端 `/query` 端點接受 `sessionId`，並使用 Neo4j 持久化聊天歷史。 (Backend `/query` endpoint accepts `sessionId` and persists chat history using Neo4j.)
     *   [x] 允許使用者清除對話 (前端清除本地 `sessionId` 並開始新會話，同時調用後端API刪除歷史)。 (Allow users to clear conversations - frontend clears local `sessionId`, starts a new session, and calls backend API to delete history.)
 *   [x] **LLM 模型選擇 (LLM Model Selection):**
-    *   [x] 目前固定使用 `gemini-2.0-flash` 和 `text-embedding-004`。已在前端頁腳顯示此資訊。(Currently fixed to specific Gemini models. This information is displayed in the frontend footer.)
-    *   [x] 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(Backend LLM service initialization refactored to use configurable model names from `config.ts`.)
+    *   [x] 目前固定使用 `gemini-pro` 和 `text-embedding-004`。已在前端頁腳顯示此資訊，並通過後端配置使其可配置。(Currently fixed to `gemini-pro` and `text-embedding-004`. This information is displayed in the frontend footer, and made configurable via backend config.)
+    *   [x] 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)。(Backend LLM service initialization refactored to use configurable model names from `config.ts`. `/query` endpoint now accepts `chatModelName`.)
     *   [ ] 未提供實際模型選擇功能。(Actual model selection feature not available.)
 *   [x] **提示工程 (Prompt Engineering):**
     *   [x] 後端 `query-engine.ts` 和 `graph-builder.ts` 中使用自訂提示模板 (Custom prompt templates used in backend `query-engine.ts` and `graph-builder.ts`)
@@ -112,6 +112,7 @@
     *   [x] 已為後端保存提示端點 (`/prompts`) 和刪除聊天歷史端點 (`/chat/history/:sessionId`) 添加整合測試。(Integration tests added for backend saved prompt and delete chat history endpoints.)
     *   [x] 後端整合測試已重構為多個文件以提高組織性。 (Backend integration tests refactored into multiple files for better organization.)
     *   [x] 後端單元測試已更新以反映對LLM/嵌入模型名稱的可配置性。(Backend unit tests updated for configurable LLM/embedding model names.)
+    *   [x] 後端 `/query` 整合測試已更新以測試 `chatModelName` 參數。(Backend `/query` integration tests updated for `chatModelName` parameter.)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
@@ -158,7 +159,7 @@
 *   [x] ~~**對話管理:** 清除歷史記錄功能現在也調用後端API刪除歷史記錄。~~ (已完成)
 *   [x] ~~**測試:** 為後端刪除聊天歷史端點添加測試，並更新前端清除歷史測試。~~ (已完成)
 *   [x] ~~**測試:** 後端整合測試已重構為多個文件以提高組織性。~~ (已完成)
-*   [x] ~~**LLM整合:** 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。~~ (已完成)
-*   [x] ~~**測試:** 後端單元測試已更新以反映對LLM/嵌入模型名稱的可配置性。~~ (已完成)
+*   [x] ~~**LLM整合:** 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)~~ (已完成)
+*   [x] ~~**測試:** 後端單元測試和整合測試已更新以反映對LLM模型名稱的可配置性/參數化。~~ (已完成)
 
 ```

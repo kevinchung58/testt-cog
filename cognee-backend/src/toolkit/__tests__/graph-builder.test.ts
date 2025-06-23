@@ -85,6 +85,16 @@ describe('Graph Builder Toolkit', () => {
       expect(mockLlm.invoke).toHaveBeenCalledWith({ document_content: mockDocument.pageContent });
       expect(result).toEqual(mockGraphElements);
     });
+
+    test('should use provided chatModelName for LLM when extracting graph elements', async () => {
+      const specificModel = "gemini-pro-vision"; // Example specific model
+      await extractGraphElementsFromDocument(mockDocument, specificModel);
+      expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+        apiKey: mockConfig.GEMINI_API_KEY,
+        modelName: specificModel,
+        temperature: 0.2,
+      });
+    });
   });
 
   describe('addGraphElementsToNeo4j', () => {
@@ -158,6 +168,27 @@ describe('Graph Builder Toolkit', () => {
       expect(results).toEqual([{name: 'Test Node'}]);
 
       fetchSchemaSpy.mockRestore(); // Clean up spy
+    });
+
+    test('should use provided chatModelName for LLM when querying graph', async () => {
+      const specificModel = "gemini-1.5-pro-latest";
+      const generatedCypher = 'MATCH (n) RETURN n';
+      const llmOutputParserChainMock = { invoke: jest.fn().mockResolvedValue(generatedCypher) };
+      const llmPipeMock = { pipe: jest.fn().mockReturnValue(llmOutputParserChainMock) };
+      (ChatGoogleGenerativeAI as jest.Mock).mockImplementation(() => ({
+        pipe: jest.fn().mockReturnValue(llmPipeMock),
+      }));
+
+      // Mock fetchGraphSchemaSummary to avoid its DB call / ensure it returns something simple
+      jest.spyOn(jest.requireActual('../graph-builder'), 'fetchGraphSchemaSummary')
+          .mockResolvedValue({ nodeLabels: ['Any'], relationshipTypes: ['ANY_REL'], propertyKeys: ['anyProp'] });
+
+      await queryGraph('Any question', undefined, specificModel);
+      expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+        apiKey: mockConfig.GEMINI_API_KEY,
+        modelName: specificModel,
+        temperature: 0.2,
+      });
     });
   });
 

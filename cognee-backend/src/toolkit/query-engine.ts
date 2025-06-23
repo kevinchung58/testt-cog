@@ -11,20 +11,21 @@ import {
 import { BaseMessage } from '@langchain/core/messages';
 
 
-let llm: ChatGoogleGenerativeAI | undefined;
+let defaultLlm: ChatGoogleGenerativeAI | undefined;
 
-function initializeLlm(): ChatGoogleGenerativeAI | undefined {
+function createLlmInstance(modelName?: string): ChatGoogleGenerativeAI | undefined {
+  const effectiveModelName = modelName || DEFAULT_CHAT_MODEL_NAME;
   if (GEMINI_API_KEY) {
     try {
       const model = new ChatGoogleGenerativeAI({
         apiKey: GEMINI_API_KEY,
-        modelName: DEFAULT_CHAT_MODEL_NAME,
+        modelName: effectiveModelName,
         temperature: 0.3, // Default, can be configured
       });
-      console.log(`ChatGoogleGenerativeAI initialized with model ${DEFAULT_CHAT_MODEL_NAME} for query-engine.ts`);
+      console.log(`ChatGoogleGenerativeAI instance created with model ${effectiveModelName} for query-engine.ts`);
       return model;
     } catch (error) {
-      console.error(`Failed to initialize ChatGoogleGenerativeAI with model ${DEFAULT_CHAT_MODEL_NAME}:`, error);
+      console.error(`Failed to initialize ChatGoogleGenerativeAI with model ${effectiveModelName}:`, error);
       return undefined;
     }
   } else {
@@ -33,17 +34,26 @@ function initializeLlm(): ChatGoogleGenerativeAI | undefined {
   }
 }
 
-llm = initializeLlm();
+defaultLlm = createLlmInstance(); // Initialize with default model name
 
-function getInitializedLlm(): ChatGoogleGenerativeAI {
-  if (!llm) {
-    console.log("Attempting to re-initialize LLM in getInitializedLlm...");
-    llm = initializeLlm();
-    if (!llm) {
-      throw new Error('LLM not initialized and re-initialization failed. GEMINI_API_KEY might be missing or chat model name is invalid.');
+function getLlm(modelName?: string): ChatGoogleGenerativeAI {
+  // If a specific modelName is requested, try to create a new instance for it.
+  if (modelName && modelName !== DEFAULT_CHAT_MODEL_NAME) {
+    const specificLlm = createLlmInstance(modelName);
+    if (specificLlm) {
+      return specificLlm;
+    }
+    console.warn(`Failed to create specific LLM ${modelName}. Falling back to default.`);
+  }
+
+  if (!defaultLlm) {
+    console.log("Attempting to re-initialize default LLM in getLlm...");
+    defaultLlm = createLlmInstance(); // Uses default name
+    if (!defaultLlm) {
+      throw new Error('Default LLM not initialized and re-initialization failed. GEMINI_API_KEY might be missing or default chat model name is invalid.');
     }
   }
-  return llm;
+  return defaultLlm;
 }
 
 /**
@@ -51,8 +61,8 @@ function getInitializedLlm(): ChatGoogleGenerativeAI {
  * @param retriever - The VectorStoreRetriever instance.
  * @returns A RetrievalQAChain instance.
  */
-export function createRAGChain(retriever: VectorStoreRetriever) {
-  const currentLlm = getInitializedLlm();
+export function createRAGChain(retriever: VectorStoreRetriever, chatModelName?: string) {
+  const currentLlm = getLlm(chatModelName);
 
   // Optional: Define a custom prompt template for the RAG chain
   const qaPromptTemplate = ChatPromptTemplate.fromMessages([
@@ -88,8 +98,8 @@ Answer:"),
  * @param retriever - The VectorStoreRetriever instance.
  * @returns A ConversationalRetrievalQAChain instance.
  */
-export function createConversationalChain(retriever: VectorStoreRetriever) {
-  const currentLlm = getInitializedLlm();
+export function createConversationalChain(retriever: VectorStoreRetriever, chatModelName?: string) {
+  const currentLlm = getLlm(chatModelName);
 
   // Prompt for condensing the question based on chat history
   const questionGeneratorTemplate = ChatPromptTemplate.fromMessages([

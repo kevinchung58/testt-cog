@@ -95,6 +95,10 @@ Model selection via API is not currently supported.
         *   **Type:** `boolean`
         *   **Optional:** Yes (Defaults to `false`)
         *   **Description:** If true, the system will attempt to query the knowledge graph for relevant context in addition to the vector store.
+    *   `chatModelName`:
+        *   **Type:** `string`
+        *   **Optional:** Yes
+        *   **Description:** Specific chat model name to use for this query (e.g., "gemini-pro", "gemini-ultra"). If not provided, uses the backend's default chat model (see LLM Configuration section).
 *   **Success Response (200 OK with SSE Stream):**
     *   `Content-Type: text/event-stream`
     *   The stream sends multiple `data:` events, each typically a JSON string. Key event `type`s within the JSON:

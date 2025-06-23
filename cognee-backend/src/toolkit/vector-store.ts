@@ -9,19 +9,20 @@ import {
   DEFAULT_EMBEDDING_MODEL_NAME // Import new config for embedding model name
 } from '../config';
 
-let embeddingsModel: GoogleGenerativeAIEmbeddings | undefined;
+let defaultEmbeddingsModel: GoogleGenerativeAIEmbeddings | undefined;
 
-function initializeEmbeddingsModel(): GoogleGenerativeAIEmbeddings | undefined {
+function createEmbeddingInstance(modelName?: string): GoogleGenerativeAIEmbeddings | undefined {
+  const effectiveModelName = modelName || DEFAULT_EMBEDDING_MODEL_NAME;
   if (GEMINI_API_KEY) {
     try {
       const model = new GoogleGenerativeAIEmbeddings({
         apiKey: GEMINI_API_KEY,
-        modelName: DEFAULT_EMBEDDING_MODEL_NAME,
+        modelName: effectiveModelName,
       });
-      console.log(`GoogleGenerativeAIEmbeddings initialized with model ${DEFAULT_EMBEDDING_MODEL_NAME} for vector-store.ts`);
+      console.log(`GoogleGenerativeAIEmbeddings instance created with model ${effectiveModelName}.`);
       return model;
     } catch (error) {
-      console.error(`Failed to initialize GoogleGenerativeAIEmbeddings with model ${DEFAULT_EMBEDDING_MODEL_NAME}:`, error);
+      console.error(`Failed to initialize GoogleGenerativeAIEmbeddings with model ${effectiveModelName}:`, error);
       return undefined;
     }
   } else {
@@ -30,18 +31,28 @@ function initializeEmbeddingsModel(): GoogleGenerativeAIEmbeddings | undefined {
   }
 }
 
-embeddingsModel = initializeEmbeddingsModel();
+defaultEmbeddingsModel = createEmbeddingInstance(); // Initialize with default model name
 
-function getInitializedEmbeddings(): GoogleGenerativeAIEmbeddings {
-  if (!embeddingsModel) {
-    // Attempt re-initialization if it failed initially and config might have updated (e.g. dynamic env load)
-    console.log("Attempting to re-initialize embeddings model in getInitializedEmbeddings...");
-    embeddingsModel = initializeEmbeddingsModel();
-    if (!embeddingsModel) {
-      throw new Error('Embeddings model not initialized and re-initialization failed. GEMINI_API_KEY might be missing or model name is invalid.');
+function getInitializedEmbeddings(modelName?: string): GoogleGenerativeAIEmbeddings {
+  // If a specific modelName is requested, try to create a new instance for it.
+  if (modelName && modelName !== DEFAULT_EMBEDDING_MODEL_NAME) {
+    const specificModel = createEmbeddingInstance(modelName);
+    if (specificModel) {
+      return specificModel;
+    }
+    // Fallback to default if specific model creation failed, with a warning
+    console.warn(`Failed to create specific embedding model ${modelName}. Falling back to default.`);
+  }
+
+  // Use or re-initialize the default model
+  if (!defaultEmbeddingsModel) {
+    console.log("Attempting to re-initialize default embeddings model in getInitializedEmbeddings...");
+    defaultEmbeddingsModel = createEmbeddingInstance(); // Uses default name
+    if (!defaultEmbeddingsModel) {
+      throw new Error('Default embeddings model not initialized and re-initialization failed. GEMINI_API_KEY might be missing or default model name is invalid.');
     }
   }
-  return embeddingsModel;
+  return defaultEmbeddingsModel;
 }
 
 // Helper function to get a Chroma vector store instance

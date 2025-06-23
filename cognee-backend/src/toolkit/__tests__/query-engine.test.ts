@@ -45,6 +45,16 @@ describe('Query Engine Toolkit', () => {
     );
   });
 
+  test('createRAGChain should use provided chatModelName when creating LLM', () => {
+    const specificModel = 'gemini-ultra-fast';
+    createRAGChain(mockRetriever, specificModel);
+    expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+      apiKey: mockConfig.GEMINI_API_KEY,
+      modelName: specificModel,
+      temperature: 0.3,
+    });
+  });
+
   test('createConversationalChain should initialize LLM with configured model and create ConversationalRetrievalQAChain', () => {
     createConversationalChain(mockRetriever);
     expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
@@ -57,5 +67,15 @@ describe('Query Engine Toolkit', () => {
       mockRetriever,
       expect.objectContaining({ returnSourceDocuments: true })
     );
+  });
+
+  test('createConversationalChain should use provided chatModelName when creating LLM', () => {
+    const specificModel = 'gemini-ultra-contextual';
+    createConversationalChain(mockRetriever, specificModel);
+    expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+      apiKey: mockConfig.GEMINI_API_KEY,
+      modelName: specificModel,
+      temperature: 0.3,
+    });
   });
 });

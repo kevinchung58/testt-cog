@@ -108,33 +108,47 @@ describe('API Endpoints - POST /query', () => {
     expect(response.text).toContain('data: {"token":" part 2."}');
     expect(response.text).toContain('data: {"type":"completed","message":"Query processing completed."}');
     expect(createVectorStoreRetriever).toHaveBeenCalled();
-    expect(createRAGChain).toHaveBeenCalledWith(mockRetriever);
+    // Default model name is undefined when not passed
+    expect(createRAGChain).toHaveBeenCalledWith(mockRetriever, undefined);
     expect(mockRagChain.stream).toHaveBeenCalledWith({ query: mockQuestion });
   });
 
-  it('should use conversational chain if chat_history is provided', async () => {
+  it('should pass chatModelName to createRAGChain if provided', async () => {
+    const mockQuestion = 'Query with specific model';
+    const specificModel = 'gemini-test-model';
+    await request(app)
+      .post('/query')
+      .send({ question: mockQuestion, chatModelName: specificModel })
+      .expect(200);
+    expect(createRAGChain).toHaveBeenCalledWith(mockRetriever, specificModel);
+  });
+
+  it('should use conversational chain if chat_history is provided, passing chatModelName', async () => {
       const mockQuestion = "And what about dogs?";
       const chatHistory = [{type: "human", content: "Tell me about cats." }, {type: "ai", content: "Cats are great."}];
+      const specificModel = 'gemini-convo-model';
 
       await request(app)
           .post('/query')
-          .send({ question: mockQuestion, chat_history: chatHistory })
+          .send({ question: mockQuestion, chat_history: chatHistory, chatModelName: specificModel })
           .expect(200);
 
-      expect(createConversationalChain).toHaveBeenCalled();
+      expect(createConversationalChain).toHaveBeenCalledWith(mockRetriever, specificModel);
       expect(mockConversationalChain.stream).toHaveBeenCalled();
   });
 
-  it('should call queryKnowledgeGraph if use_knowledge_graph is true', async () => {
-      const mockQuestion = "Query with KG";
+  it('should call queryKnowledgeGraph with chatModelName if use_knowledge_graph is true and model specified', async () => {
+      const mockQuestion = "Query with KG and specific model";
+      const specificModel = 'gemini-kg-model';
       mockQueryGraph.mockResolvedValue([{ someData: "from graph" }]);
 
       const response = await request(app)
           .post('/query')
-          .send({ question: mockQuestion, use_knowledge_graph: true })
+          .send({ question: mockQuestion, use_knowledge_graph: true, chatModelName: specificModel })
           .expect(200);
 
-      expect(mockQueryGraph).toHaveBeenCalledWith(mockQuestion);
+      // queryKnowledgeGraph takes (question, graphSchemaSummary, chatModelName)
+      expect(mockQueryGraph).toHaveBeenCalledWith(mockQuestion, undefined, specificModel);
       expect(response.text).toContain('data: {"type":"kg_context","content":"Knowledge Graph Results:\\n{\\"someData\\":\\"from graph\\"}"}');
   });
 

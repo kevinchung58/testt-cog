@@ -9,13 +9,12 @@ import * as apiService from '../../services/apiService'; // To mock askQuery
 vi.mock('../../services/apiService', async (importOriginal) => {
   const actual = await importOriginal() as typeof apiService;
   return {
-    ...actual, // Preserve other exports if any that are not explicitly mocked
+    ...actual,
     askQuery: vi.fn(),
     fetchChatHistory: vi.fn(),
-    // Mock other exports if they exist and are used by any part of the render tree
-    // ingestFile: vi.fn(),
-    // getGraphData: vi.fn(),
-    // getNodeNeighbors: vi.fn(),
+    apiGetSavedPrompts: vi.fn(),
+    apiSaveUserPrompt: vi.fn(),
+    apiDeleteSavedPrompt: vi.fn(),
   };
 });
 
@@ -27,21 +26,26 @@ vi.mock('uuid', () => ({
 describe('ChatInterface Component', () => {
   let mockAskQuery: vi.Mock;
   let mockFetchChatHistory: vi.Mock;
+  let mockApiGetSavedPrompts: vi.Mock;
+  let mockApiSaveUserPrompt: vi.Mock;
+  let mockApiDeleteSavedPrompt: vi.Mock;
   let mockUuidV4: vi.Mock;
 
   beforeEach(() => {
-    // Reset mocks before each test
     vi.resetAllMocks();
 
     mockAskQuery = apiService.askQuery as vi.Mock;
     mockFetchChatHistory = apiService.fetchChatHistory as vi.Mock;
+    mockApiGetSavedPrompts = apiService.apiGetSavedPrompts as vi.Mock;
+    mockApiSaveUserPrompt = apiService.apiSaveUserPrompt as vi.Mock;
+    mockApiDeleteSavedPrompt = apiService.apiDeleteSavedPrompt as vi.Mock;
     mockUuidV4 = require('uuid').v4 as vi.Mock;
 
     // Default mock implementations
-    mockFetchChatHistory.mockResolvedValue([]); // Default to no history
-    mockUuidV4.mockReturnValue('test-session-id'); // Default mock session ID
+    mockFetchChatHistory.mockResolvedValue([]);
+    mockApiGetSavedPrompts.mockResolvedValue([]);
+    mockUuidV4.mockReturnValue('test-session-id');
 
-    // Mock localStorage
     Storage.prototype.getItem = vi.fn();
     Storage.prototype.setItem = vi.fn();
     Storage.prototype.removeItem = vi.fn();
@@ -279,17 +283,31 @@ describe('ChatInterface Component', () => {
   });
 
   describe('Saved Prompts Functionality', () => {
-    const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts';
+    // const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts'; // No longer used
 
-    it('loads saved prompts from localStorage on mount', async () => {
-      const mockPrompts = [{ id: 'p1', name: 'Prompt 1', text: 'What is X?' }];
+    beforeEach(() => {
+      // Ensure localStorage mocks are fresh for these specific tests if needed,
+      // though primary interaction is now with apiService mocks.
+      (Storage.prototype.getItem as vi.Mock).mockClear();
+      (Storage.prototype.setItem as vi.Mock).mockClear();
+    });
+
+    it('loads saved prompts from API on mount', async () => {
+      const mockApiPrompts: apiService.SavedPrompt[] = [
+        { promptId: 'api_p1', name: 'API Prompt 1', text: 'What is Y?', createdAt: new Date().toISOString() }
+      ];
+      mockApiGetSavedPrompts.mockResolvedValue(mockApiPrompts);
+      // Mock session ID storage for initial load
       (Storage.prototype.getItem as vi.Mock).mockImplementation((key: string) => {
-        if (key === SAVED_PROMPTS_STORAGE_KEY) return JSON.stringify(mockPrompts);
-        if (key === 'cogneeChatSessionId') return 'test-session'; // For session ID loading
-        return null;
+         if (key === 'cogneeChatSessionId') return 'test-session-for-prompts';
+         return null;
       });
 
+
       render(<ChatInterface />);
+      // Wait for initial effects to run (session ID setup, history fetch, prompts fetch)
+      await waitFor(() => expect(mockApiGetSavedPrompts).toHaveBeenCalled());
+
       const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
       await userEvent.click(managePromptsButton);
 
@@ -298,8 +316,18 @@ describe('ChatInterface Component', () => {
       });
     });
 
-    it('allows saving a new prompt', async () => {
-      mockUuidV4.mockReturnValueOnce('prompt-uuid-1'); // For the prompt ID
+    it('allows saving a new prompt via API', async () => {
+      const newPromptName = 'My API Prompt';
+      const newPromptText = 'This is saved via API.';
+      const savedPromptFromApi: apiService.SavedPrompt = {
+        promptId: 'api-uuid-1',
+        name: newPromptName,
+        text: newPromptText,
+        createdAt: new Date().toISOString()
+      };
+      mockApiSaveUserPrompt.mockResolvedValue(savedPromptFromApi);
+      // mockUuidV4 is not directly used for prompt ID by component anymore
+
       render(<ChatInterface />);
       const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
       await userEvent.click(managePromptsButton);
@@ -310,34 +338,33 @@ describe('ChatInterface Component', () => {
       const chatInput = screen.getByPlaceholderText(/ask a question.../i);
 
       // First, type something into the main chat input to be the default prompt text
-      await userEvent.type(chatInput, 'This is the current question text.');
+      await userEvent.type(chatInput, newPromptText); // Fill currentQuestion for default save
       // Now, type a name for the prompt
-      await userEvent.type(promptNameInput, 'My Test Prompt');
-      // The textarea for prompt text should have picked up the current question.
-      // If we want to override, we type into promptTextInput. Here, we use the default.
+      await userEvent.type(promptNameInput, newPromptName);
+      // If promptToSave state was used, type into promptTextInput instead/additionally.
+      // Here, assuming it defaults to currentQuestion.
 
       await userEvent.click(savePromptButton);
 
       await waitFor(() => {
-        expect(Storage.prototype.setItem).toHaveBeenCalledWith(
-          SAVED_PROMPTS_STORAGE_KEY,
-          JSON.stringify([{ id: 'prompt-uuid-1', name: 'My Test Prompt', text: 'This is the current question text.' }])
-        );
-        expect(screen.getByText('My Test Prompt')).toBeInTheDocument();
+        expect(mockApiSaveUserPrompt).toHaveBeenCalledWith(newPromptName, newPromptText);
+        expect(screen.getByText(newPromptName)).toBeInTheDocument(); // Check if displayed
       });
-      // Inputs should be cleared after saving
       expect(promptNameInput).toHaveValue('');
-      // promptTextInput is a textarea, its value check is slightly different
+      // Text area for promptToSave should also be clear, or currentQuestion if it was used as default
       expect(screen.getByPlaceholderText('Prompt Text (current question by default)')).toHaveValue('');
     });
 
     it('allows selecting a saved prompt to populate the chat input', async () => {
-      const mockPrompts = [{ id: 'p1', name: 'Greeting Prompt', text: 'Hello there!' }];
-      (Storage.prototype.getItem as vi.Mock).mockImplementation((key: string) => {
-        if (key === SAVED_PROMPTS_STORAGE_KEY) return JSON.stringify(mockPrompts);
-        return null;
-      });
+      const mockApiPrompts: apiService.SavedPrompt[] = [
+        { promptId: 'api_p1', name: 'API Greeting Prompt', text: 'Hello from API!', createdAt: new Date().toISOString() }
+      ];
+      mockApiGetSavedPrompts.mockResolvedValue(mockApiPrompts);
+
       render(<ChatInterface />);
+      // Wait for prompts to load
+      await waitFor(() => expect(mockApiGetSavedPrompts).toHaveBeenCalled());
+
       const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
       await userEvent.click(managePromptsButton);
 
@@ -349,30 +376,29 @@ describe('ChatInterface Component', () => {
       expect(screen.queryByText('Save Current Question as Prompt:')).not.toBeInTheDocument();
     });
 
-    it('allows deleting a saved prompt', async () => {
-      const mockPrompts = [
-        { id: 'p1', name: 'Prompt One', text: 'Text One' },
-        { id: 'p2', name: 'Prompt Two', text: 'Text Two' },
+    it('allows deleting a saved prompt via API', async () => {
+      const mockApiPrompts: apiService.SavedPrompt[] = [
+        { promptId: 'api_p1', name: 'API Prompt One', text: 'Text One', createdAt: new Date().toISOString() },
+        { promptId: 'api_p2', name: 'API Prompt Two', text: 'Text Two', createdAt: new Date().toISOString() },
       ];
-      (Storage.prototype.getItem as vi.Mock).mockImplementation((key: string) => {
-        if (key === SAVED_PROMPTS_STORAGE_KEY) return JSON.stringify(mockPrompts);
-        return null;
-      });
+      mockApiGetSavedPrompts.mockResolvedValue(mockApiPrompts);
+      mockApiDeleteSavedPrompt.mockResolvedValue(undefined); // Simulate successful deletion
+
       render(<ChatInterface />);
+      // Wait for prompts to load
+      await waitFor(() => expect(mockApiGetSavedPrompts).toHaveBeenCalled());
+
       const managePromptsButton = screen.getByRole('button', { name: /manage prompts/i });
       await userEvent.click(managePromptsButton);
 
       const deleteButtons = await screen.findAllByRole('button', { name: /delete prompt/i });
       expect(deleteButtons.length).toBe(2);
-      await userEvent.click(deleteButtons[0]); // Delete "Prompt One"
+      await userEvent.click(deleteButtons[0]); // Delete "API Prompt One" (which has promptId: 'api_p1')
 
       await waitFor(() => {
-        expect(screen.queryByText('Prompt One')).not.toBeInTheDocument();
-        expect(screen.getByText('Prompt Two')).toBeInTheDocument();
-        expect(Storage.prototype.setItem).toHaveBeenCalledWith(
-          SAVED_PROMPTS_STORAGE_KEY,
-          JSON.stringify([{ id: 'p2', name: 'Prompt Two', text: 'Text Two' }])
-        );
+        expect(mockApiDeleteSavedPrompt).toHaveBeenCalledWith('api_p1');
+        expect(screen.queryByText('API Prompt One')).not.toBeInTheDocument();
+        expect(screen.getByText('API Prompt Two')).toBeInTheDocument();
       });
     });
   });

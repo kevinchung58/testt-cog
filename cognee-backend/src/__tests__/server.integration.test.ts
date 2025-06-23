@@ -41,7 +41,12 @@ jest.mock('../toolkit/graph-builder', () => {
     getNodeWithNeighbors: jest.fn(),
     fetchGraphSchemaSummary: jest.fn(),
     queryGraph: jest.fn(),
-    documentsToGraph: jest.fn(), // Mock for /ingest
+    documentsToGraph: jest.fn(),
+    saveChatMessage: jest.fn(), // Added for chat history
+    getChatHistory: jest.fn(),   // Added for chat history
+    saveUserPrompt: jest.fn(),  // Added for saved prompts
+    getSavedPrompts: jest.fn(), // Added for saved prompts
+    deleteSavedPrompt: jest.fn() // Added for saved prompts
   };
 });
 
@@ -405,6 +410,118 @@ describe('POST /ingest', () => {
       .expect('Content-Type', /json/)
       .expect(500);
     expect(response.body.message).toContain('Error processing file');
+  });
+});
+
+describe('Saved Prompts API (/prompts)', () => {
+  let mockSaveUserPrompt: vi.Mock;
+  let mockGetSavedPrompts: vi.Mock;
+  let mockDeleteSavedPrompt: vi.Mock;
+
+  beforeEach(() => {
+    const graphBuilderMock = jest.requireMock('../toolkit/graph-builder');
+    mockSaveUserPrompt = graphBuilderMock.saveUserPrompt;
+    mockGetSavedPrompts = graphBuilderMock.getSavedPrompts;
+    mockDeleteSavedPrompt = graphBuilderMock.deleteSavedPrompt;
+
+    mockSaveUserPrompt.mockReset();
+    mockGetSavedPrompts.mockReset();
+    mockDeleteSavedPrompt.mockReset();
+  });
+
+  describe('POST /prompts', () => {
+    it('should create and return a new saved prompt', async () => {
+      const newPromptData = { name: 'Test Prompt', text: 'What is testing?' };
+      const expectedSavedPrompt = { promptId: 'uuid-123', createdAt: new Date().toISOString(), ...newPromptData };
+      mockSaveUserPrompt.mockResolvedValue(expectedSavedPrompt);
+
+      const response = await request(app)
+        .post('/prompts')
+        .send(newPromptData)
+        .expect('Content-Type', /json/)
+        .expect(201);
+
+      expect(response.body).toEqual(expectedSavedPrompt);
+      expect(mockSaveUserPrompt).toHaveBeenCalledWith(newPromptData.name, newPromptData.text);
+    });
+
+    it('should return 400 if name or text is missing', async () => {
+      await request(app).post('/prompts').send({ name: 'Only Name' }).expect(400);
+      await request(app).post('/prompts').send({ text: 'Only Text' }).expect(400);
+    });
+
+    it('should return 500 if saveUserPrompt fails', async () => {
+      mockSaveUserPrompt.mockRejectedValue(new Error('DB Save Error'));
+      await request(app)
+        .post('/prompts')
+        .send({ name: 'Fail Prompt', text: 'This will fail' })
+        .expect(500);
+    });
+  });
+
+  describe('GET /prompts', () => {
+    it('should return all saved prompts', async () => {
+      const mockPrompts = [
+        { promptId: 'p1', name: 'P1', text: 'T1', createdAt: new Date().toISOString() },
+        { promptId: 'p2', name: 'P2', text: 'T2', createdAt: new Date().toISOString() },
+      ];
+      mockGetSavedPrompts.mockResolvedValue(mockPrompts);
+
+      const response = await request(app)
+        .get('/prompts')
+        .expect('Content-Type', /json/)
+        .expect(200);
+
+      expect(response.body).toEqual(mockPrompts);
+      expect(mockGetSavedPrompts).toHaveBeenCalled();
+    });
+
+    it('should return 500 if getSavedPrompts fails', async () => {
+      mockGetSavedPrompts.mockRejectedValue(new Error('DB Fetch Error'));
+      await request(app).get('/prompts').expect(500);
+    });
+  });
+
+  describe('DELETE /prompts/:promptId', () => {
+    it('should delete a prompt and return 204', async () => {
+      const promptIdToDelete = 'p1';
+      mockDeleteSavedPrompt.mockResolvedValue(undefined);
+
+      await request(app)
+        .delete(`/prompts/${promptIdToDelete}`)
+        .expect(204);
+
+      expect(mockDeleteSavedPrompt).toHaveBeenCalledWith(promptIdToDelete);
+    });
+
+    it('should return 404 if deleteSavedPrompt indicates not found', async () => {
+      mockDeleteSavedPrompt.mockRejectedValue(new Error('Prompt not found')); // Simulate service layer indicating not found
+       await request(app)
+        .delete('/prompts/nonexistent')
+        .expect(404); // Server should interpret this error as 404
+    });
+
+    it('should return 400 if promptId is missing (though route structure prevents this)', async () => {
+      // This case is typically handled by routing; if the :promptId param is part of the route,
+      // a request to just /prompts/ would not match this route.
+      // However, if an empty string was somehow passed:
+      // This would depend on how Express handles empty path params or if our validation catches it.
+      // The server.ts code `if (!promptId)` handles this.
+       const response = await request(app)
+        .delete('/prompts/') // This might 404 due to route mismatch or hit the validation
+        .expect(404); // Or 400 if validation for empty string param was more specific
+        // Current server code for DELETE /prompts/:promptId doesn't explicitly check for empty string promptId
+        // but relies on it being present. An empty string would likely fail in the DB lookup.
+        // For a more robust test, ensure the route definition or a middleware handles empty path params if that's a concern.
+        // Given the current setup, a request to /prompts/ (empty ID) would likely result in a 404 from Express routing
+        // before it even hits the handler, or if it did, the DB call would fail to find a prompt with an empty ID.
+    });
+
+
+    it('should return 500 if deleteSavedPrompt fails for other reasons', async () => {
+      mockDeleteSavedPrompt.mockRejectedValue(new Error('DB Delete Error'));
+      await request(app).delete('/prompts/p1').expect(500);
+    });
   });
 });
 });

@@ -314,6 +314,105 @@ export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> 
   }
 }
 
+// Saved Prompt type
+export interface SavedPrompt {
+  promptId: string;
+  name: string;
+  text: string;
+  createdAt: string; // ISO string date
+}
+
+/**
+ * Saves a user-defined prompt to Neo4j.
+ * @param name The name of the prompt.
+ * @param text The content of the prompt.
+ * @returns The saved prompt object including its generated ID and timestamp.
+ */
+export async function saveUserPrompt(name: string, text: string): Promise<SavedPrompt> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  const promptId = neo4j.types.UUID.random().toString(); // Generate UUID for the prompt
+  const createdAt = new Date().toISOString();
+
+  try {
+    const result = await session.writeTransaction(async tx =>
+      tx.run(
+        `CREATE (p:SavedPrompt {
+           promptId: $promptId,
+           name: $name,
+           text: $text,
+           createdAt: datetime($createdAt)
+         }) RETURN p.promptId AS promptId, p.name AS name, p.text AS text, p.createdAt AS createdAt`,
+        { promptId, name, text, createdAt }
+      )
+    );
+    const record = result.records[0];
+    return {
+      promptId: record.get('promptId'),
+      name: record.get('name'),
+      text: record.get('text'),
+      createdAt: record.get('createdAt').toString(), // Convert Neo4j DateTime to ISO string
+    };
+  } catch (error: any) {
+    console.error(`Error saving user prompt "${name}":`, error.message, error.stack);
+    throw new Error(`Failed to save user prompt: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Retrieves all saved prompts from Neo4j, ordered by creation date.
+ * @returns An array of SavedPrompt objects.
+ */
+export async function getSavedPrompts(): Promise<SavedPrompt[]> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    const result = await session.readTransaction(async tx =>
+      tx.run(
+        `MATCH (p:SavedPrompt)
+         RETURN p.promptId AS promptId, p.name AS name, p.text AS text, p.createdAt AS createdAt
+         ORDER BY p.createdAt DESC`
+      )
+    );
+    return result.records.map(record => ({
+      promptId: record.get('promptId'),
+      name: record.get('name'),
+      text: record.get('text'),
+      createdAt: record.get('createdAt').toString(),
+    }));
+  } catch (error: any) {
+    console.error('Error retrieving saved prompts:', error.message, error.stack);
+    throw new Error(`Failed to retrieve saved prompts: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Deletes a saved prompt from Neo4j by its ID.
+ * @param promptId The ID of the prompt to delete.
+ */
+export async function deleteSavedPrompt(promptId: string): Promise<void> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    await session.writeTransaction(async tx =>
+      tx.run(
+        `MATCH (p:SavedPrompt {promptId: $promptId}) DETACH DELETE p`,
+        { promptId }
+      )
+    );
+    console.log(`Prompt ${promptId} deleted successfully.`);
+  } catch (error: any) {
+    console.error(`Error deleting prompt ${promptId}:`, error.message, error.stack);
+    throw new Error(`Failed to delete prompt: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
 
 /**
  * Fetches an overview of the graph, optionally filtered by a search term.

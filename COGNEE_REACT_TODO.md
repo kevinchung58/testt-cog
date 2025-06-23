@@ -36,9 +36,12 @@
     *   [x] `GET /graph/overview`: (新增) 獲取圖譜概覽數據，可選搜索詞和限制 (New: Get graph overview data, optional search term and limit)
     *   [x] `GET /graph/node/:id/neighbors`: (新增) 獲取特定節點及其鄰居的數據 (New: Get data for a specific node and its neighbors)
     *   [x] `GET /chat/history/:sessionId`: (新增) 獲取特定會話的聊天歷史 (New: Get chat history for a specific session)
+    *   [x] `POST /prompts`: (新增) 保存新的用戶自定義提示 (New: Save a new user-defined prompt)
+    *   [x] `GET /prompts`: (新增) 檢索所有已保存的用戶自定義提示 (New: Retrieve all saved user-defined prompts)
+    *   [x] `DELETE /prompts/:promptId`: (新增) 刪除指定的已保存提示 (New: Delete a specific saved prompt)
 *   [x] **請求處理與驗證 (Request Handling & Validation):**
     *   [x] 使用 `express.json()` 和 `multer` 處理請求 (Using `express.json()` and `multer` for request handling)
-    *   [x] `/ingest`, `/query`, `/graph/overview`, `/chat/history/:sessionId` 中有基本的輸入驗證 (Basic input validation in routes)
+    *   [x] `/ingest`, `/query`, `/graph/overview`, `/chat/history/:sessionId`, `/prompts` 中有基本的輸入驗證 (Basic input validation in routes)
 *   [x] **錯誤處理 (Error Handling):**
     *   [x] 在 `server.ts` 和 toolkit 模組中有 try-catch 錯誤處理 (Try-catch error handling in `server.ts` and toolkit modules)
     *   [x] API 回傳一致的錯誤訊息結構 (APIs return consistent error message structure)
@@ -58,7 +61,7 @@
     *   [x] `KnowledgeGraphVisualizer.tsx` 中的錯誤訊息已增強，更具用戶友好性。(Error messages in `KnowledgeGraphVisualizer.tsx` enhanced for user-friendliness.)
 *   [x] **元件開發 (Component Development):**
     *   [x] `FileUpload` 元件 (Component for file upload)
-    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕、保存/使用提示功能) (Component for chat, including input, response display, copy button, clear history button, save/reuse prompts feature)
+    *   [x] `ChatInterface` 元件 (包含輸入和回應顯示、複製按鈕、清除歷史按鈕、保存/使用提示功能 - 後端持久化) (Component for chat, including input, response display, copy button, clear history button, save/reuse prompts feature - backend persisted)
     *   [x] `KnowledgeGraphVisualizer` 元件 (Component for graph visualization)
     *   [x] `GraphDetailPanel` 元件 (Component for showing details of graph elements)
 *   [x] **狀態管理 (State Management):**
@@ -71,6 +74,7 @@
         *   [x] `apiService.ts` 中的 `getGraphSchemaSummary` 已更新為呼叫 `/graph-schema`。(Updated `getGraphSchemaSummary` to call `/graph-schema`.)
         *   [x] `apiService.ts` 中的 `getGraphData` 和 `getNodeNeighbors` 已更新為分別呼叫新的 `/graph/overview` 和 `/graph/node/:id/neighbors` 端點。(`getGraphData` and `getNodeNeighbors` in `apiService.ts` updated to call new `/graph/overview` and `/graph/node/:id/neighbors` endpoints respectively.)
         *   [x] `apiService.ts` 中新增 `fetchChatHistory` 函式，並修改 `askQuery` 以處理 `sessionId`。(Added `fetchChatHistory` and modified `askQuery` in `apiService.ts` to handle `sessionId`.)
+        *   [x] `apiService.ts` 中新增用於保存/獲取/刪除提示的函式 (`apiSaveUserPrompt`, `apiGetSavedPrompts`, `apiDeleteSavedPrompt`)。(Added functions for saving/getting/deleting prompts in `apiService.ts`.)
 *   [x] **表單處理 (Form Handling):**
     *   [x] `FileUpload.tsx` 和 `ChatInterface.tsx` 中擷取使用者輸入並處理提交事件 (User input capture and form submission handled in `FileUpload.tsx` and `ChatInterface.tsx`)
 *   [x] **渲染 LLM 回應 (Rendering LLM Response):**
@@ -91,7 +95,7 @@
     *   [ ] 未提供實際模型選擇功能。(Actual model selection feature not available.)
 *   [x] **提示工程 (Prompt Engineering):**
     *   [x] 後端 `query-engine.ts` 和 `graph-builder.ts` 中使用自訂提示模板 (Custom prompt templates used in backend `query-engine.ts` and `graph-builder.ts`)
-    *   [x] (可選) 允許使用者儲存和重複使用 prompts (前端 `ChatInterface.tsx` 使用 Local Storage 實現) (Optional: Allow users to save and reuse prompts - implemented in frontend `ChatInterface.tsx` using Local Storage)
+    *   [x] (可選) 允許使用者儲存和重複使用 prompts (已使用 Neo4j 實現後端持久化，並更新前端以使用此功能) (Optional: Allow users to save and reuse prompts - backend persistence with Neo4j implemented and frontend updated.)
 *   [x] **流式回應 (Streaming Responses):**
     *   [x] 後端 `/query` 使用 Server-Sent Events (SSE) (Backend `/query` uses SSE)
     *   [x] 前端 `ChatInterface.tsx` 和 `apiService.ts` 處理並逐步顯示回應 (Frontend handles and displays incremental response)
@@ -102,7 +106,8 @@
     *   [x] 後端有 `jest` 設定和一些 toolkit 測試檔案 (`*.test.ts`) (Backend has `jest` setup and some toolkit test files)
     *   [x] 已為新的後端圖譜端點添加單元測試和整合測試 (Unit and integration tests added for new backend graph endpoints)
     *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
-    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts) and `KnowledgeGraphVisualizer.tsx` (error handling).)
+    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能 - 後端集成) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts with backend integration) and `KnowledgeGraphVisualizer.tsx` (error handling).)
+    *   [x] 已為後端保存提示端點 (`/prompts`) 添加整合測試。(Integration tests added for backend saved prompt endpoints.)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
@@ -127,7 +132,7 @@
 **文件與維護 (Documentation & Maintenance)**
 
 *   [x] **README.md:** 專案根目錄及前後端子目錄均有 `README.md` (Root and subdirectories for frontend/backend have `README.md`)
-*   [ ] **API 文件 (可選):** Swagger/OpenAPI (Optional: API documentation with Swagger/OpenAPI) - (Not implemented)
+*   [x] **API 文件 (可選):** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔。(Initial API documentation created in `cognee-backend/API_DOCUMENTATION.md` for existing endpoints.)
 *   [x] **程式碼註解 (Code Comments):** 程式碼中有一定程度的註解 (Some comments exist in the codebase)
 
 **待辦事項 - 問題修復與改進 (TODO - Bug Fixes & Improvements)**
@@ -144,5 +149,7 @@
 *   [x] **(可選) UI/UX 改進:**
     *   [x] ~~`KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。~~ (已評估，現有 CSS 基本可接受)
     *   [x] ~~`ChatInterface`: 允許複製 AI 回應。~~ (已完成)
+*   [x] ~~**提示工程:** (可選) 允許使用者儲存和重複使用 prompts (已使用 Neo4j 實現後端持久化，並更新前端以使用此功能)~~ (已完成)
+*   [x] ~~**API 文件:** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔。~~ (已完成)
 
 ```

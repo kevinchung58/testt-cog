@@ -212,3 +212,42 @@ export const fetchChatHistory = async (sessionId: string): Promise<ApiChatMessag
     return []; // Return empty on error to allow chat to continue without old history
   }
 };
+
+// Saved Prompts API
+export interface SavedPrompt { // Matches backend SavedPrompt structure
+  promptId: string;
+  name: string;
+  text: string;
+  createdAt: string;
+}
+
+export const apiGetSavedPrompts = async (): Promise<SavedPrompt[]> => {
+  try {
+    const response = await apiClient.get<SavedPrompt[]>('/prompts');
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching saved prompts:', error);
+    // Return empty array or rethrow, depending on how UI should handle this.
+    // For now, let UI handle empty array if it occurs.
+    return [];
+  }
+};
+
+export const apiSaveUserPrompt = async (name: string, text: string): Promise<SavedPrompt> => {
+  try {
+    const response = await apiClient.post<SavedPrompt>('/prompts', { name, text });
+    return response.data;
+  } catch (error: any) {
+    console.error('Error saving prompt:', error);
+    throw error.response?.data || error.message || new Error('Failed to save prompt');
+  }
+};
+
+export const apiDeleteSavedPrompt = async (promptId: string): Promise<void> => {
+  try {
+    await apiClient.delete(`/prompts/${promptId}`);
+  } catch (error: any) {
+    console.error(`Error deleting prompt ${promptId}:`, error);
+    throw error.response?.data || error.message || new Error('Failed to delete prompt');
+  }
+};

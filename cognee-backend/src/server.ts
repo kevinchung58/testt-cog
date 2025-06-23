@@ -16,11 +16,14 @@ import {
   fetchGraphSchemaSummary as fetchNeo4jGraphSchema,
   getGraphOverview,
   getNodeWithNeighbors,
-  saveChatMessage, // New import for saving chat messages
-  getChatHistory, // New import for retrieving chat history
+  saveChatMessage,
+  getChatHistory,
+  saveUserPrompt, // New import for saving user prompts
+  getSavedPrompts,  // New import for retrieving user prompts
+  deleteSavedPrompt // New import for deleting user prompts
 } from './toolkit/graph-builder';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
-import { v4 as uuidv4 } from 'uuid'; // For generating session IDs if needed
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -385,6 +388,50 @@ app.get('/graph/node/:id/neighbors', async (req, res) => {
 // For now, they are removed as their direct counterparts in queryOrchestrationService are gone,
 // and queryKnowledgeGraph is a more general Q&A interface.
 // They can be re-added if specific graph traversal/visualization queries are needed from graph-builder.
+
+// Saved Prompts Endpoints
+app.post('/prompts', async (req, res) => {
+  const { name, text } = req.body;
+  if (!name || typeof name !== 'string' || !text || typeof text !== 'string') {
+    return res.status(400).json({ message: 'Validation error: name and text are required and must be strings.' });
+  }
+  try {
+    const savedPrompt = await saveUserPrompt(name, text);
+    res.status(201).json(savedPrompt);
+  } catch (error: any) {
+    console.error('Error saving prompt:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to save prompt.', error: error.message });
+  }
+});
+
+app.get('/prompts', async (req, res) => {
+  try {
+    const prompts = await getSavedPrompts();
+    res.json(prompts);
+  } catch (error: any) {
+    console.error('Error fetching saved prompts:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch saved prompts.', error: error.message });
+  }
+});
+
+app.delete('/prompts/:promptId', async (req, res) => {
+  const { promptId } = req.params;
+  if (!promptId) {
+    return res.status(400).json({ message: 'Prompt ID is required.' });
+  }
+  try {
+    await deleteSavedPrompt(promptId);
+    res.status(204).send(); // No content on successful deletion
+  } catch (error: any) {
+    console.error(`Error deleting prompt ${promptId}:`, error.message, error.stack);
+    // Check if error indicates not found, potentially return 404
+    if (error.message.toLowerCase().includes('not found')) { // Basic check
+        return res.status(404).json({ message: `Prompt with ID ${promptId} not found.`});
+    }
+    res.status(500).json({ message: `Failed to delete prompt ${promptId}.`, error: error.message });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Backend server (LangChain Integrated) listening on port ${port}`);

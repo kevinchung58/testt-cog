@@ -3,9 +3,21 @@ import { askQuery, fetchChatHistory, ApiChatMessage } from '../services/apiServi
 import styles from './ChatInterface.module.css';
 import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
 
+import {
+  askQuery,
+  fetchChatHistory,
+  ApiChatMessage,
+  apiGetSavedPrompts,
+  apiSaveUserPrompt,
+  apiDeleteSavedPrompt,
+  SavedPrompt as ApiSavedPrompt // Use the interface from apiService
+} from '../services/apiService';
+import styles from './ChatInterface.module.css';
+import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
+
 // const LOCAL_STORAGE_KEY = 'cogneeChatHistory'; // No longer used for history itself
 const SESSION_ID_STORAGE_KEY = 'cogneeChatSessionId';
-const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts';
+// const SAVED_PROMPTS_STORAGE_KEY = 'cogneeSavedPrompts'; // No longer used
 
 interface ChatMessage { // This is the component's internal ChatMessage type
   id: string;
@@ -13,15 +25,12 @@ interface ChatMessage { // This is the component's internal ChatMessage type
   text: string;
 }
 
-interface SavedPrompt {
-  id: string;
-  name: string;
-  text: string;
-  // Optional: include context items if you want to display them
-  // These would need to be sent via SSE if desired with streaming text
-  // graphContext?: string[];
-  // vectorContext?: string[];
-}
+// Using ApiSavedPrompt directly as the state type for savedPrompts
+// interface SavedPrompt {
+//   id: string; // This will be promptId from backend
+//   name: string;
+//   text: string;
+// }
 
 const ChatInterface: React.FC = () => {
   const [currentQuestion, setCurrentQuestion] = useState<string>('');
@@ -29,7 +38,7 @@ const ChatInterface: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+  const [savedPrompts, setSavedPrompts] = useState<ApiSavedPrompt[]>([]); // Use ApiSavedPrompt
   const [showPromptManager, setShowPromptManager] = useState<boolean>(false);
   const [newPromptName, setNewPromptName] = useState<string>('');
   const [promptToSave, setPromptToSave] = useState<string>('');
@@ -64,25 +73,20 @@ const ChatInterface: React.FC = () => {
     };
     loadHistory();
 
-    // Load Saved Prompts
-    try {
-      const storedPrompts = localStorage.getItem(SAVED_PROMPTS_STORAGE_KEY);
-      if (storedPrompts) {
-        setSavedPrompts(JSON.parse(storedPrompts));
+    // Load Saved Prompts from backend
+    const loadSavedPrompts = async () => {
+      try {
+        const prompts = await apiGetSavedPrompts();
+        setSavedPrompts(prompts);
+      } catch (e) {
+        console.error("Error loading saved prompts from API:", e);
+        // Optionally set an error state for prompt loading
       }
-    } catch (e) {
-      console.error("Error loading saved prompts from local storage:", e);
-    }
+    };
+    loadSavedPrompts();
   }, []);
 
-  // Save prompts to local storage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(SAVED_PROMPTS_STORAGE_KEY, JSON.stringify(savedPrompts));
-    } catch (e) {
-      console.error("Error saving prompts to local storage:", e);
-    }
-  }, [savedPrompts]);
+  // No longer need useEffect to save prompts to local storage, backend handles persistence.
 
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -172,8 +176,9 @@ const ChatInterface: React.FC = () => {
     setError('');
   };
 
-  const handleSavePrompt = () => {
-    if (!promptToSave.trim()) {
+  const handleSavePrompt = async () => {
+    const textToSave = promptToSave.trim() || currentQuestion.trim(); // Use currentQuestion if promptToSave is empty
+    if (!textToSave) {
       alert('Prompt text cannot be empty.');
       return;
     }
@@ -181,11 +186,17 @@ const ChatInterface: React.FC = () => {
       alert('Prompt name cannot be empty.');
       return;
     }
-    const newId = uuidv4();
-    setSavedPrompts(prev => [...prev, { id: newId, name: newPromptName, text: promptToSave }]);
-    setNewPromptName('');
-    setPromptToSave(''); // Clear after saving
-    //setShowPromptManager(false); // Optionally close manager after save
+    try {
+      const newPrompt = await apiSaveUserPrompt(newPromptName.trim(), textToSave);
+      // Backend now returns the full prompt object including promptId
+      setSavedPrompts(prev => [...prev, newPrompt]);
+      setNewPromptName('');
+      setPromptToSave('');
+      // setShowPromptManager(false); // Optionally close
+    } catch (e: any) {
+      console.error("Error saving prompt via API:", e);
+      alert(`Failed to save prompt: ${e.message || 'Unknown error'}`);
+    }
   };
 
   const handleSelectPrompt = (promptText: string) => {
@@ -193,8 +204,14 @@ const ChatInterface: React.FC = () => {
     setShowPromptManager(false); // Close manager after selecting
   };
 
-  const handleDeletePrompt = (promptId: string) => {
-    setSavedPrompts(prev => prev.filter(p => p.id !== promptId));
+  const handleDeletePrompt = async (promptId: string) => {
+    try {
+      await apiDeleteSavedPrompt(promptId);
+      setSavedPrompts(prev => prev.filter(p => p.promptId !== promptId)); // Use promptId from ApiSavedPrompt
+    } catch (e: any) {
+      console.error("Error deleting prompt via API:", e);
+      alert(`Failed to delete prompt: ${e.message || 'Unknown error'}`);
+    }
   };
 
 
@@ -233,11 +250,11 @@ const ChatInterface: React.FC = () => {
           {savedPrompts.length > 0 && <h4>Saved Prompts:</h4>}
           <ul className={styles.savedPromptsList}>
             {savedPrompts.map(prompt => (
-              <li key={prompt.id} className={styles.savedPromptItem}>
+              <li key={prompt.promptId} className={styles.savedPromptItem}>
                 <span className={styles.promptName} onClick={() => handleSelectPrompt(prompt.text)} title="Click to use this prompt">
                   {prompt.name}
                 </span>
-                <button onClick={() => handleDeletePrompt(prompt.id)} className={styles.deletePromptButton} title="Delete prompt">
+                <button onClick={() => handleDeletePrompt(prompt.promptId)} className={styles.deletePromptButton} title="Delete prompt">
                   &times;
                 </button>
               </li>

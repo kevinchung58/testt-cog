@@ -99,6 +99,144 @@ export interface GraphElements {
   relationships: Array<{ sourceId: string; targetId: string; type: string; properties?: Record<string, any> }>;
 }
 
+// Frontend-compatible GraphData structure
+export interface FeGraphNode {
+  id: string; // Neo4j elementId or internal ID
+  name: string; // Typically from a 'name' or 'title' property
+  labels?: string[]; // Neo4j labels
+  properties?: Record<string, any>; // Other properties
+  color?: string; // Optional: for frontend styling
+  val?: number; // Optional: for node sizing in frontend
+}
+
+export interface FeGraphLink {
+  source: string; // ID of source FeGraphNode
+  target: string; // ID of target FeGraphNode
+  type?: string; // Relationship type
+  properties?: Record<string, any>; // Relationship properties
+  // id?: string; // Optional: if links need unique IDs for frontend
+}
+
+export interface FeGraphData {
+  nodes: FeGraphNode[];
+  links: FeGraphLink[];
+}
+
+// Helper to transform Neo4j records to FeGraphData
+// This is a generic transformer; specific queries might need tailored transformers.
+function recordsToFeGraphData(records: any[]): FeGraphData {
+  const nodes = new Map<string, FeGraphNode>();
+  const links: FeGraphLink[] = [];
+
+  records.forEach(record => {
+    // Try to find 'n', 'm', 'node', 'sourceNode', 'targetNode' for nodes
+    // and 'r', 'rel', 'relationship' for relationships
+    record.keys.forEach((key: string) => {
+      const element = record.get(key);
+      if (element && typeof element === 'object') {
+        if (element.labels && element.identity) { // Likely a Neo4j Node
+          const nodeId = element.properties.id || element.identity.toString(); // Prefer custom 'id' if present
+          if (!nodes.has(nodeId)) {
+            nodes.set(nodeId, {
+              id: nodeId,
+              name: element.properties.name || element.properties.title || nodeId, // Fallback to id if no name/title
+              labels: element.labels,
+              properties: element.properties,
+            });
+          }
+        } else if (element.type && element.start && element.end && element.identity) { // Likely a Neo4j Relationship
+          // Ensure source and target nodes are processed or exist
+          // This simple version assumes nodes involved in relationships are also returned by the query separately
+          // or that their IDs are sufficient.
+          const sourceId = element.properties.sourceId || element.start.toString(); // Assuming direct IDs or start/end node identity
+          const targetId = element.properties.targetId || element.end.toString();
+
+          // Check if source and target nodes are in our map from the same query, otherwise this link might be dangling
+          // or rely on frontend already having these nodes. For simplicity, we add the link.
+          // A more robust solution ensures nodes are added first or queries return them.
+
+          links.push({
+            source: sourceId,
+            target: targetId,
+            type: element.type,
+            properties: element.properties,
+            // id: element.identity.toString(), // Optional: if links need unique IDs
+          });
+        }
+      }
+    });
+  });
+  return { nodes: Array.from(nodes.values()), links };
+}
+
+
+/**
+ * Fetches an overview of the graph, optionally filtered by a search term.
+ * Returns data formatted for frontend graph visualization.
+ * @param searchTerm - Optional term to filter nodes by (e.g., matching name property).
+ * @param limit - Optional limit for the number of nodes/relationships.
+ */
+export async function getGraphOverview(searchTerm?: string, limit: number = 50): Promise<FeGraphData> {
+  let query: string;
+  const params: Record<string, any> = { limit };
+
+  if (searchTerm) {
+    // Query nodes matching the search term and their direct relationships
+    // This query returns paths of length 1 where one node matches the search term.
+    query = `
+      MATCH path = (n)-[r]-(m)
+      WHERE (n.name CONTAINS $searchTerm OR n.id CONTAINS $searchTerm OR n.nodeType CONTAINS $searchTerm)
+      RETURN n, r, m
+      LIMIT $limit
+    `;
+    // Simpler query: just nodes matching and then try to get their rels separately (could be more complex)
+    // query = `
+    //   MATCH (n)
+    //   WHERE n.name CONTAINS $searchTerm OR n.id CONTAINS $searchTerm OR n.nodeType CONTAINS $searchTerm
+    //   OPTIONAL MATCH (n)-[r]-(m)
+    //   RETURN n, r, m
+    //   LIMIT $limit
+    // `;
+    params.searchTerm = searchTerm;
+  } else {
+    // Query a general overview of the graph (e.g., some central nodes or a random sample)
+    // This example fetches all nodes and relationships up to a limit.
+    // For large graphs, a more sophisticated sampling/centrality query would be needed.
+    query = `
+      MATCH (n)
+      OPTIONAL MATCH (n)-[r]-(m)
+      RETURN n, r, m
+      LIMIT $limit
+    `;
+  }
+
+  console.log(`Executing getGraphOverview. Search: "${searchTerm}", Cypher: ${query}`);
+  const result = await executeCypherQuery(query, params);
+  return recordsToFeGraphData(result.records);
+}
+
+/**
+ * Fetches a specific node and its immediate neighbors.
+ * Returns data formatted for frontend graph visualization.
+ * @param nodeId - The ID of the central node.
+ */
+export async function getNodeWithNeighbors(nodeId: string): Promise<FeGraphData> {
+  // Query for the central node, its direct relationships, and the connected neighbor nodes.
+  const query = `
+    MATCH (n {id: $nodeId})-[r]-(m)
+    RETURN n, r, m
+    UNION
+    MATCH (n {id: $nodeId})
+    RETURN n, null as r, null as m
+  `;
+  // The UNION part ensures the central node is returned even if it has no relationships.
+  const params = { nodeId };
+
+  console.log(`Executing getNodeWithNeighbors for nodeId: "${nodeId}", Cypher: ${query}`);
+  const result = await executeCypherQuery(query, params);
+  return recordsToFeGraphData(result.records);
+}
+
 
 const EXTRACT_GRAPH_PROMPT_TEMPLATE =
   `From the text below, extract entities and their relationships to form a knowledge graph.

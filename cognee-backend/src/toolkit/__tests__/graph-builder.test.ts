@@ -4,7 +4,12 @@ import {
   queryGraph,
   documentsToGraph,
   fetchGraphSchemaSummary,
-  GraphElements
+  GraphElements,
+  getGraphOverview,
+  getNodeWithNeighbors,
+  FeGraphData,
+  FeGraphNode,
+  FeGraphLink
 } from '../graph-builder';
 import { Document } from '@langchain/core/documents';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
@@ -123,4 +128,59 @@ describe('Graph Builder Toolkit', () => {
       expect(schema.propertyKeys).toEqual(['prop1']);
     });
   });
+
+  describe('getGraphOverview', () => {
+    beforeEach(() => {
+      // Reset the session.run mock for these specific tests
+      mockSession.run.mockReset();
+    });
+
+    test('should call executeCypherQuery with correct query for no search term', async () => {
+      const mockRecords: any[] = [
+        { keys: ['n', 'r', 'm'], get: (key: string) => {
+            if (key === 'n') return { identity: { toString: () => '1' }, labels: ['TypeA'], properties: { id: 'node1', name: 'Node 1' } };
+            if (key === 'm') return { identity: { toString: () => '2' }, labels: ['TypeB'], properties: { id: 'node2', name: 'Node 2' } };
+            if (key === 'r') return { type: 'RELATES_TO', start: { toString: () => '1' }, end: { toString: () => '2' }, properties: {} };
+            return null;
+        }}
+      ];
+      mockSession.run.mockResolvedValue({ records: mockRecords, summary: {} } as unknown as QueryResult);
+
+      const result = await getGraphOverview(undefined, 10);
+      expect(mockSession.run).toHaveBeenCalledWith(expect.stringContaining('MATCH (n) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT $limit'), { limit: 10 });
+      expect(result.nodes).toHaveLength(2);
+      expect(result.links).toHaveLength(1);
+      expect(result.nodes.find(n => n.id === 'node1')?.name).toBe('Node 1');
+      expect(result.links[0].type).toBe('RELATES_TO');
+    });
+
+    test('should call executeCypherQuery with correct query for a search term', async () => {
+      mockSession.run.mockResolvedValue({ records: [], summary: {} } as unknown as QueryResult); // No need to check data transformation here again
+      await getGraphOverview('searchTerm', 5);
+      expect(mockSession.run).toHaveBeenCalledWith(expect.stringContaining('WHERE (n.name CONTAINS $searchTerm OR n.id CONTAINS $searchTerm OR n.nodeType CONTAINS $searchTerm)'), { searchTerm: 'searchTerm', limit: 5 });
+    });
+  });
+
+  describe('getNodeWithNeighbors', () => {
+    beforeEach(() => {
+      mockSession.run.mockReset();
+    });
+    test('should call executeCypherQuery with correct query for a nodeId', async () => {
+      const mockRecords: any[] = [
+        { keys: ['n', 'r', 'm'], get: (key: string) => {
+            if (key === 'n') return { identity: { toString: () => '1' }, labels: ['TypeA'], properties: { id: 'node1', name: 'Node 1' } };
+            if (key === 'm') return { identity: { toString: () => '2' }, labels: ['TypeB'], properties: { id: 'node2', name: 'Node 2' } };
+            if (key === 'r') return { type: 'CONNECTED_TO', start: { toString: () => '1' }, end: { toString: () => '2' }, properties: {} };
+            return null;
+        }}
+      ];
+      mockSession.run.mockResolvedValue({ records: mockRecords, summary: {} } as unknown as QueryResult);
+
+      const result = await getNodeWithNeighbors('node1');
+      expect(mockSession.run).toHaveBeenCalledWith(expect.stringContaining('MATCH (n {id: $nodeId})-[r]-(m) RETURN n, r, m UNION MATCH (n {id: $nodeId}) RETURN n, null as r, null as m'), { nodeId: 'node1' });
+      expect(result.nodes).toHaveLength(2);
+      expect(result.links).toHaveLength(1);
+    });
+  });
+
 });

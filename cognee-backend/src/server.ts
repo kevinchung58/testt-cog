@@ -1,5 +1,6 @@
 import './config'; // Ensures .env variables are loaded
 import express, { Request } from 'express';
+import cors from 'cors'; // Import cors middleware
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -9,7 +10,13 @@ import { CHROMA_COLLECTION_NAME as DEFAULT_CHROMA_COLLECTION_NAME } from './conf
 import { processFileToDocuments, SupportedFileMimeTypes } from './toolkit/data-processor';
 import { addDocuments as addDocumentsToVectorStore, createRetriever as createVectorStoreRetriever } from './toolkit/vector-store';
 import { createRAGChain, createConversationalChain } from './toolkit/query-engine';
-import { documentsToGraph, queryGraph as queryKnowledgeGraph, fetchGraphSchemaSummary as fetchNeo4jGraphSchema } from './toolkit/graph-builder';
+import {
+  documentsToGraph,
+  queryGraph as queryKnowledgeGraph,
+  fetchGraphSchemaSummary as fetchNeo4jGraphSchema,
+  getGraphOverview, // New import for graph overview
+  getNodeWithNeighbors, // New import for node neighbors
+} from './toolkit/graph-builder';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 
 const app = express();
@@ -25,6 +32,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
 const upload = multer({ storage: storage });
+
+// Enable CORS for all routes and origins (adjust for production as needed)
+app.use(cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -275,6 +285,46 @@ app.post('/query-graph', async (req, res) => {
         console.error('Error in /query-graph route:', error.message, error.stack);
         res.status(500).json({ message: 'Failed to query graph.', error: error.message });
     }
+});
+
+// New Graph Endpoints for Frontend Visualization
+app.get('/graph/overview', async (req, res) => {
+  const searchTerm = req.query.searchTerm as string | undefined;
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50; // Default limit 50
+
+  if (isNaN(limit) || limit <= 0) {
+    return res.status(400).json({ message: 'Invalid limit parameter. Must be a positive integer.' });
+  }
+
+  console.log(`Received request for graph overview. Search term: "${searchTerm}", Limit: ${limit}`);
+  try {
+    const graphData = await getGraphOverview(searchTerm, limit);
+    res.json(graphData);
+  } catch (error: any) {
+    console.error('Error in /graph/overview route:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch graph overview.', error: error.message });
+  }
+});
+
+app.get('/graph/node/:id/neighbors', async (req, res) => {
+  const nodeId = req.params.id;
+  if (!nodeId) {
+    return res.status(400).json({ message: 'Node ID is required.' });
+  }
+  console.log(`Received request for neighbors of node: "${nodeId}"`);
+  try {
+    const graphData = await getNodeWithNeighbors(nodeId);
+    if (graphData.nodes.length === 0 && graphData.links.length === 0) {
+      // This can happen if the node ID doesn't exist, or exists but has no neighbors.
+      // The current getNodeWithNeighbors query will return the node itself if it exists.
+      // So if nodes array is empty, it means node ID was not found.
+      return res.status(404).json({ message: `Node with ID '${nodeId}' not found or has no connections.` });
+    }
+    res.json(graphData);
+  } catch (error: any) {
+    console.error(`Error in /graph/node/${nodeId}/neighbors route:`, error.message, error.stack);
+    res.status(500).json({ message: `Failed to fetch neighbors for node ${nodeId}.`, error: error.message });
+  }
 });
 
 

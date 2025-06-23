@@ -27,7 +27,7 @@ export interface GraphSchemaSummary {
 
 export const getGraphSchemaSummary = async (): Promise<GraphSchemaSummary> => {
   try {
-    const response = await apiClient.get<GraphSchemaSummary>('/graph-schema-summary');
+    const response = await apiClient.get<GraphSchemaSummary>('/graph-schema'); // Updated endpoint
     return response.data;
   } catch (error: any) {
     console.error('Error fetching graph schema summary:', error);
@@ -147,21 +147,26 @@ export interface GraphData {
   links: GraphLink[];
 }
 
-export const getGraphData = async (searchTerm?: string): Promise<GraphData> => {
+export const getGraphData = async (searchTerm?: string, limit: number = 50): Promise<GraphData> => {
   try {
-    const params = searchTerm ? { searchTerm } : {};
-    const response = await apiClient.get<GraphData>('/graph-data', { params });
+    const params: Record<string, any> = { limit };
+    if (searchTerm) {
+      params.searchTerm = searchTerm;
+    }
+    // Calls the new backend endpoint /graph/overview
+    const response = await apiClient.get<GraphData>('/graph/overview', { params });
     return response.data;
   } catch (error: any) {
-    console.error('Error fetching graph data:', error);
-    throw error.response?.data || error.message || new Error('Failed to fetch graph data');
+    console.error('Error fetching graph overview data:', error);
+    throw error.response?.data || error.message || new Error('Failed to fetch graph overview data');
   }
 };
 
 export const getNodeNeighbors = async (nodeId: string): Promise<GraphData> => {
   try {
     // Ensure nodeId is properly encoded if it can contain special characters, though elementIds usually don't.
-    const response = await apiClient.get<GraphData>(`/node-neighbors/${nodeId}`);
+    // Calls the new backend endpoint /graph/node/:id/neighbors
+    const response = await apiClient.get<GraphData>(`/graph/node/${nodeId}/neighbors`);
     return response.data;
   } catch (error: any) {
     console.error(`Error fetching neighbors for node ${nodeId}:`, error);

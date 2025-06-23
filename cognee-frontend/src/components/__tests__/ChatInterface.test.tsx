@@ -15,6 +15,7 @@ vi.mock('../../services/apiService', async (importOriginal) => {
     apiGetSavedPrompts: vi.fn(),
     apiSaveUserPrompt: vi.fn(),
     apiDeleteSavedPrompt: vi.fn(),
+    apiDeleteChatHistory: vi.fn(), // Added mock for delete chat history
   };
 });
 
@@ -29,6 +30,7 @@ describe('ChatInterface Component', () => {
   let mockApiGetSavedPrompts: vi.Mock;
   let mockApiSaveUserPrompt: vi.Mock;
   let mockApiDeleteSavedPrompt: vi.Mock;
+  let mockApiDeleteChatHistory: vi.Mock; // Added
   let mockUuidV4: vi.Mock;
 
   beforeEach(() => {
@@ -39,6 +41,7 @@ describe('ChatInterface Component', () => {
     mockApiGetSavedPrompts = apiService.apiGetSavedPrompts as vi.Mock;
     mockApiSaveUserPrompt = apiService.apiSaveUserPrompt as vi.Mock;
     mockApiDeleteSavedPrompt = apiService.apiDeleteSavedPrompt as vi.Mock;
+    mockApiDeleteChatHistory = apiService.apiDeleteChatHistory as vi.Mock; // Added
     mockUuidV4 = require('uuid').v4 as vi.Mock;
 
     // Default mock implementations
@@ -257,27 +260,34 @@ describe('ChatInterface Component', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('AI response to copy.');
   });
 
-  it('clears chat history and resets session ID on "Clear History" click', async () => {
-    // Initial setup with some history and a session ID
-    (Storage.prototype.getItem as vi.Mock).mockReturnValue('session-to-clear');
-    mockFetchChatHistory.mockResolvedValue([{ id: '1', type: 'user', text: 'Message to clear' }]);
+  it('clears chat history, calls backend delete, and resets session ID on "Clear History" click', async () => {
+    const initialSessionId = 'session-to-clear-123';
+    (Storage.prototype.getItem as vi.Mock).mockReturnValue(initialSessionId);
+    mockFetchChatHistory.mockResolvedValue([{ id: '1', type: 'user', text: 'A Message to Clear' }]);
+    mockApiDeleteChatHistory.mockResolvedValue(undefined); // Simulate successful backend deletion
 
     render(<ChatInterface />);
     await waitFor(() => {
-      expect(screen.getByText('Message to clear')).toBeInTheDocument();
+      expect(screen.getByText('A Message to Clear')).toBeInTheDocument();
     });
 
-    mockUuidV4.mockReturnValue('new-session-after-clear'); // For when new session ID is generated
+    const newGeneratedSessionId = 'new-session-post-clear-456';
+    mockUuidV4.mockReturnValue(newGeneratedSessionId);
 
     const clearButton = screen.getByRole('button', { name: /clear history/i });
     await userEvent.click(clearButton);
 
-    expect(screen.queryByText('Message to clear')).not.toBeInTheDocument();
-    expect(Storage.prototype.removeItem).toHaveBeenCalledWith('cogneeChatSessionId');
-    expect(mockUuidV4).toHaveBeenCalled(); // To generate new session ID
-    expect(Storage.prototype.setItem).toHaveBeenCalledWith('cogneeChatSessionId', 'new-session-after-clear');
+    // Verify backend delete was called
+    expect(mockApiDeleteChatHistory).toHaveBeenCalledWith(initialSessionId);
 
-    // Verify chat history is empty
+    // Verify UI is cleared
+    expect(screen.queryByText('A Message to Clear')).not.toBeInTheDocument();
+
+    // Verify localStorage operations for session ID reset
+    expect(Storage.prototype.removeItem).toHaveBeenCalledWith('cogneeChatSessionId');
+    expect(mockUuidV4).toHaveBeenCalled();
+    expect(Storage.prototype.setItem).toHaveBeenCalledWith('cogneeChatSessionId', newGeneratedSessionId);
+
     const chatHistoryLog = screen.getByRole('log');
     expect(chatHistoryLog.children.length).toBe(0);
   });

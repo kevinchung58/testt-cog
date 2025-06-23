@@ -18,9 +18,10 @@ import {
   getNodeWithNeighbors,
   saveChatMessage,
   getChatHistory,
-  saveUserPrompt, // New import for saving user prompts
-  getSavedPrompts,  // New import for retrieving user prompts
-  deleteSavedPrompt // New import for deleting user prompts
+  deleteChatHistory, // New import for deleting chat history
+  saveUserPrompt,
+  getSavedPrompts,
+  deleteSavedPrompt
 } from './toolkit/graph-builder';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 import { v4 as uuidv4 } from 'uuid';
@@ -309,6 +310,24 @@ app.get('/chat/history/:sessionId', async (req, res) => {
   } catch (error: any) {
     console.error(`Error fetching history for session ${sessionId}:`, error.message, error.stack);
     res.status(500).json({ message: 'Failed to fetch chat history.', error: error.message });
+  }
+});
+
+app.delete('/chat/history/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId) {
+    return res.status(400).json({ message: 'Session ID is required for deletion.' });
+  }
+  try {
+    await deleteChatHistory(sessionId);
+    res.status(204).send(); // No content on successful deletion
+  } catch (error: any) {
+    console.error(`Error deleting history for session ${sessionId}:`, error.message, error.stack);
+    // Check if error indicates not found, potentially return 404
+    if (error.message.toLowerCase().includes('not found')) { // Basic check
+        return res.status(404).json({ message: `Chat history for session ID ${sessionId} not found.`});
+    }
+    res.status(500).json({ message: 'Failed to delete chat history.', error: error.message });
   }
 });
 

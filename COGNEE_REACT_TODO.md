@@ -36,6 +36,7 @@
     *   [x] `GET /graph/overview`: (新增) 獲取圖譜概覽數據，可選搜索詞和限制 (New: Get graph overview data, optional search term and limit)
     *   [x] `GET /graph/node/:id/neighbors`: (新增) 獲取特定節點及其鄰居的數據 (New: Get data for a specific node and its neighbors)
     *   [x] `GET /chat/history/:sessionId`: (新增) 獲取特定會話的聊天歷史 (New: Get chat history for a specific session)
+    *   [x] `DELETE /chat/history/:sessionId`: (新增) 刪除特定會話的聊天歷史 (New: Delete chat history for a specific session)
     *   [x] `POST /prompts`: (新增) 保存新的用戶自定義提示 (New: Save a new user-defined prompt)
     *   [x] `GET /prompts`: (新增) 檢索所有已保存的用戶自定義提示 (New: Retrieve all saved user-defined prompts)
     *   [x] `DELETE /prompts/:promptId`: (新增) 刪除指定的已保存提示 (New: Delete a specific saved prompt)
@@ -73,7 +74,7 @@
     *   [x] **API 端點校準 (API Endpoint Alignment):**
         *   [x] `apiService.ts` 中的 `getGraphSchemaSummary` 已更新為呼叫 `/graph-schema`。(Updated `getGraphSchemaSummary` to call `/graph-schema`.)
         *   [x] `apiService.ts` 中的 `getGraphData` 和 `getNodeNeighbors` 已更新為分別呼叫新的 `/graph/overview` 和 `/graph/node/:id/neighbors` 端點。(`getGraphData` and `getNodeNeighbors` in `apiService.ts` updated to call new `/graph/overview` and `/graph/node/:id/neighbors` endpoints respectively.)
-        *   [x] `apiService.ts` 中新增 `fetchChatHistory` 函式，並修改 `askQuery` 以處理 `sessionId`。(Added `fetchChatHistory` and modified `askQuery` in `apiService.ts` to handle `sessionId`.)
+        *   [x] `apiService.ts` 中新增 `fetchChatHistory` 和 `apiDeleteChatHistory` 函式，並修改 `askQuery` 以處理 `sessionId`。(Added `fetchChatHistory`, `apiDeleteChatHistory` and modified `askQuery` in `apiService.ts` to handle `sessionId`.)
         *   [x] `apiService.ts` 中新增用於保存/獲取/刪除提示的函式 (`apiSaveUserPrompt`, `apiGetSavedPrompts`, `apiDeleteSavedPrompt`)。(Added functions for saving/getting/deleting prompts in `apiService.ts`.)
 *   [x] **表單處理 (Form Handling):**
     *   [x] `FileUpload.tsx` 和 `ChatInterface.tsx` 中擷取使用者輸入並處理提交事件 (User input capture and form submission handled in `FileUpload.tsx` and `ChatInterface.tsx`)
@@ -89,7 +90,7 @@
 *   [x] **對話管理 (Conversation Management):**
     *   [x] 前端 `ChatInterface.tsx` 管理 `sessionId` (存於 Local Storage)，並從後端加載/顯示歷史記錄。(Frontend `ChatInterface.tsx` manages `sessionId` (stored in Local Storage) and loads/displays history from backend.)
     *   [x] 後端 `/query` 端點接受 `sessionId`，並使用 Neo4j 持久化聊天歷史。 (Backend `/query` endpoint accepts `sessionId` and persists chat history using Neo4j.)
-    *   [x] 允許使用者清除對話 (前端清除本地 `sessionId` 並開始新會話，後端未實現刪除歷史功能)。 (Allow users to clear conversations - frontend clears local `sessionId` and starts a new session; backend deletion not implemented.)
+    *   [x] 允許使用者清除對話 (前端清除本地 `sessionId` 並開始新會話，同時調用後端API刪除歷史)。 (Allow users to clear conversations - frontend clears local `sessionId`, starts a new session, and calls backend API to delete history.)
 *   [x] **LLM 模型選擇 (LLM Model Selection):**
     *   [x] 目前固定使用 `gemini-2.0-flash` 和 `text-embedding-004`。已在前端頁腳顯示此資訊。(Currently fixed to specific Gemini models. This information is displayed in the frontend footer.)
     *   [ ] 未提供實際模型選擇功能。(Actual model selection feature not available.)
@@ -106,8 +107,8 @@
     *   [x] 後端有 `jest` 設定和一些 toolkit 測試檔案 (`*.test.ts`) (Backend has `jest` setup and some toolkit test files)
     *   [x] 已為新的後端圖譜端點添加單元測試和整合測試 (Unit and integration tests added for new backend graph endpoints)
     *   [x] 已為後端 `/ingest` 和 `/graph-schema` 端點添加整合測試 (Integration tests added for backend `/ingest` and `/graph-schema` endpoints)
-    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能 - 後端集成) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts with backend integration) and `KnowledgeGraphVisualizer.tsx` (error handling).)
-    *   [x] 已為後端保存提示端點 (`/prompts`) 添加整合測試。(Integration tests added for backend saved prompt endpoints.)
+    *   [x] 已為前端 `ChatInterface.tsx` (包括保存提示功能 - 後端集成、清除歷史記錄) 和 `KnowledgeGraphVisualizer.tsx` (錯誤處理) 添加/更新測試。(Tests added/updated for new features/error handling in `ChatInterface.tsx` (including saved prompts with backend integration, clear history) and `KnowledgeGraphVisualizer.tsx` (error handling).)
+    *   [x] 已為後端保存提示端點 (`/prompts`) 和刪除聊天歷史端點 (`/chat/history/:sessionId`) 添加整合測試。(Integration tests added for backend saved prompt and delete chat history endpoints.)
     *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
@@ -150,6 +151,8 @@
     *   [x] ~~`KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。~~ (已評估，現有 CSS 基本可接受)
     *   [x] ~~`ChatInterface`: 允許複製 AI 回應。~~ (已完成)
 *   [x] ~~**提示工程:** (可選) 允許使用者儲存和重複使用 prompts (已使用 Neo4j 實現後端持久化，並更新前端以使用此功能)~~ (已完成)
-*   [x] ~~**API 文件:** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔。~~ (已完成)
+*   [x] ~~**API 文件:** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔，包括刪除聊天歷史端點。~~ (已完成)
+*   [x] ~~**對話管理:** 清除歷史記錄功能現在也調用後端API刪除歷史記錄。~~ (已完成)
+*   [x] ~~**測試:** 為後端刪除聊天歷史端點添加測試，並更新前端清除歷史測試。~~ (已完成)
 
 ```

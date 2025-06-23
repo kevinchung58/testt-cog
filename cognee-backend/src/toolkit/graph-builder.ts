@@ -314,6 +314,42 @@ export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> 
   }
 }
 
+/**
+ * Deletes all chat messages and the session node for a given session ID.
+ * @param sessionId The unique ID for the chat session.
+ */
+export async function deleteChatHistory(sessionId: string): Promise<void> {
+  const currentDriver = getDriverInstance();
+  const session = currentDriver.session();
+  try {
+    await session.writeTransaction(async tx => {
+      // First, delete all messages associated with the session and their :NEXT_MESSAGE relationships
+      // It's important to delete relationships when deleting nodes to avoid dangling relationships.
+      // The messages themselves are linked to the session via :HAS_MESSAGE.
+      // :NEXT_MESSAGE relationships are between ChatMessage nodes.
+      await tx.run(
+        `MATCH (s:ChatSession {sessionId: $sessionId})-[hr:HAS_MESSAGE]->(msg:ChatMessage)
+         OPTIONAL MATCH (msg)-[nr:NEXT_MESSAGE]-()
+         DETACH DELETE msg, nr`, // DETACH DELETE removes node and its relationships
+        { sessionId }
+      );
+      // Then, delete the session node itself
+      await tx.run(
+        `MATCH (s:ChatSession {sessionId: $sessionId})
+         DETACH DELETE s`, // Detach just in case, though :HAS_MESSAGE should be gone
+        { sessionId }
+      );
+    });
+    console.log(`Chat history for session ${sessionId} deleted successfully.`);
+  } catch (error: any) {
+    console.error(`Error deleting chat history for session ${sessionId}:`, error.message, error.stack);
+    throw new Error(`Failed to delete chat history: ${error.message}`);
+  } finally {
+    await session.close();
+  }
+}
+
+
 // Saved Prompt type
 export interface SavedPrompt {
   promptId: string;

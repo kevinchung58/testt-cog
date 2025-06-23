@@ -1,8 +1,4 @@
 import React, { useState, FormEvent, ChangeEvent, useEffect, useCallback } from 'react';
-import { askQuery, fetchChatHistory, ApiChatMessage } from '../services/apiService';
-import styles from './ChatInterface.module.css';
-import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
-
 import {
   askQuery,
   fetchChatHistory,
@@ -10,7 +6,8 @@ import {
   apiGetSavedPrompts,
   apiSaveUserPrompt,
   apiDeleteSavedPrompt,
-  SavedPrompt as ApiSavedPrompt // Use the interface from apiService
+  SavedPrompt as ApiSavedPrompt, // Use the interface from apiService
+  apiDeleteChatHistory // Import the new service function
 } from '../services/apiService';
 import styles from './ChatInterface.module.css';
 import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
@@ -165,15 +162,21 @@ const ChatInterface: React.FC = () => {
 
   const handleClearHistory = async () => {
     if (sessionId) {
-      // Optional: Call backend to delete history for this sessionId if such endpoint exists.
-      // For now, just clearing client state and starting a new session.
+      try {
+        await apiDeleteChatHistory(sessionId);
+        console.log(`Chat history for session ${sessionId} deleted from backend.`);
+      } catch (e: any) {
+        console.error("Failed to delete chat history from backend:", e);
+        setError(`Could not clear history on server: ${e.message || 'Unknown error'}. Local history cleared.`);
+        // Proceed to clear local session and UI anyway
+      }
       localStorage.removeItem(SESSION_ID_STORAGE_KEY);
       const newSessionId = uuidv4();
       localStorage.setItem(SESSION_ID_STORAGE_KEY, newSessionId);
       setSessionId(newSessionId);
     }
     setChatHistory([]);
-    setError('');
+    if (!error) setError(''); // Clear general errors if no new error occurred during delete
   };
 
   const handleSavePrompt = async () => {

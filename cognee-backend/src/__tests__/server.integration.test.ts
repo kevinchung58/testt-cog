@@ -43,10 +43,11 @@ jest.mock('../toolkit/graph-builder', () => {
     queryGraph: jest.fn(),
     documentsToGraph: jest.fn(),
     saveChatMessage: jest.fn(), // Added for chat history
-    getChatHistory: jest.fn(),   // Added for chat history
-    saveUserPrompt: jest.fn(),  // Added for saved prompts
-    getSavedPrompts: jest.fn(), // Added for saved prompts
-    deleteSavedPrompt: jest.fn() // Added for saved prompts
+    getChatHistory: jest.fn(),
+    deleteChatHistory: jest.fn(), // Added for deleting chat history
+    saveUserPrompt: jest.fn(),
+    getSavedPrompts: jest.fn(),
+    deleteSavedPrompt: jest.fn()
   };
 });
 
@@ -522,6 +523,55 @@ describe('Saved Prompts API (/prompts)', () => {
       mockDeleteSavedPrompt.mockRejectedValue(new Error('DB Delete Error'));
       await request(app).delete('/prompts/p1').expect(500);
     });
+  });
+});
+
+describe('DELETE /chat/history/:sessionId', () => {
+  let mockDeleteChatHistory: vi.Mock;
+
+  beforeEach(() => {
+    const graphBuilderMock = jest.requireMock('../toolkit/graph-builder');
+    mockDeleteChatHistory = graphBuilderMock.deleteChatHistory;
+    mockDeleteChatHistory.mockReset();
+  });
+
+  it('should delete chat history and return 204 for a valid session ID', async () => {
+    const sessionIdToDelete = 'session-to-delete-123';
+    mockDeleteChatHistory.mockResolvedValue(undefined);
+
+    await request(app)
+      .delete(`/chat/history/${sessionIdToDelete}`)
+      .expect(204);
+
+    expect(mockDeleteChatHistory).toHaveBeenCalledWith(sessionIdToDelete);
+  });
+
+  it('should return 404 if deleteChatHistory indicates session not found', async () => {
+    const sessionId = 'nonexistent-session';
+    mockDeleteChatHistory.mockRejectedValue(new Error('History not found'));
+    await request(app)
+      .delete(`/chat/history/${sessionId}`)
+      .expect('Content-Type', /json/)
+      .expect(404);
+    expect(mockDeleteChatHistory).toHaveBeenCalledWith(sessionId);
+  });
+
+  it('should return 400 if sessionId is missing (though route structure might catch this first)', async () => {
+      // Similar to delete prompts, a request to /chat/history/ (empty ID) would likely 404 at routing level.
+      // The server.ts code `if (!sessionId)` handles this if it somehow reaches the handler.
+      await request(app)
+        .delete('/chat/history/') // This will likely 404 by Express if no param
+        .expect(404); // Or 400 if route allows it and validation catches empty string
+  });
+
+  it('should return 500 if deleteChatHistory fails for other reasons', async () => {
+    const sessionId = 'session-fail-500';
+    mockDeleteChatHistory.mockRejectedValue(new Error('Some other DB Error'));
+    await request(app)
+      .delete(`/chat/history/${sessionId}`)
+      .expect('Content-Type', /json/)
+      .expect(500);
+    expect(mockDeleteChatHistory).toHaveBeenCalledWith(sessionId);
   });
 });
 });

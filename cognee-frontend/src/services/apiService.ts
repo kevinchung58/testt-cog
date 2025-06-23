@@ -251,3 +251,18 @@ export const apiDeleteSavedPrompt = async (promptId: string): Promise<void> => {
     throw error.response?.data || error.message || new Error('Failed to delete prompt');
   }
 };
+
+export const apiDeleteChatHistory = async (sessionId: string): Promise<void> => {
+  if (!sessionId) {
+    console.warn('No session ID provided, cannot delete chat history.');
+    return Promise.resolve(); // Or throw an error if sessionID is mandatory
+  }
+  try {
+    await apiClient.delete(`/chat/history/${sessionId}`);
+  } catch (error: any) {
+    console.error(`Error deleting chat history for session ${sessionId}:`, error);
+    // Depending on desired UX, you might want to re-throw or handle silently
+    // For now, re-throwing so the component can potentially inform the user.
+    throw error.response?.data || error.message || new Error('Failed to delete chat history');
+  }
+};

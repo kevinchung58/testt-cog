@@ -222,6 +222,23 @@ Currently, there is no authentication implemented for these endpoints.
         { "message": "Failed to fetch chat history.", "error": "Specific error message" }
         ```
 
+*   **Endpoint:** `DELETE /chat/history/:sessionId`
+*   **Description:** Deletes the entire chat history for a given session ID.
+*   **Path Parameters:**
+    *   `sessionId` (string, required): The ID of the chat session to delete.
+*   **Success Response (204 No Content):**
+    *   Empty body.
+*   **Error Responses:**
+    *   `400 Bad Request`: If `sessionId` is missing.
+    *   `404 Not Found`: If the chat history for the session ID is not found.
+        ```json
+        { "message": "Chat history for session ID some_id not found." }
+        ```
+    *   `500 Internal Server Error`:
+        ```json
+        { "message": "Failed to delete chat history.", "error": "Specific error message" }
+        ```
+
 ---
 
 ### 8. Saved Prompts

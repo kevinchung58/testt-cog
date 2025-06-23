@@ -134,7 +134,7 @@
 **文件與維護 (Documentation & Maintenance)**
 
 *   [x] **README.md:** 專案根目錄及前後端子目錄均有 `README.md` (Root and subdirectories for frontend/backend have `README.md`)
-*   [x] **API 文件 (可選):** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔。(Initial API documentation created in `cognee-backend/API_DOCUMENTATION.md` for existing endpoints.)
+*   [x] **API 文件 (可選):** `cognee-backend/API_DOCUMENTATION.md` 已創建並增強，包含所有端點的詳細信息和cURL示例。(API documentation created and enhanced in `cognee-backend/API_DOCUMENTATION.md` with details for all endpoints and cURL examples.)
 *   [x] **程式碼註解 (Code Comments):** 程式碼中有一定程度的註解 (Some comments exist in the codebase)
 
 **待辦事項 - 問題修復與改進 (TODO - Bug Fixes & Improvements)**
@@ -152,7 +152,7 @@
     *   [x] ~~`KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。~~ (已評估，現有 CSS 基本可接受)
     *   [x] ~~`ChatInterface`: 允許複製 AI 回應。~~ (已完成)
 *   [x] ~~**提示工程:** (可選) 允許使用者儲存和重複使用 prompts (已使用 Neo4j 實現後端持久化，並更新前端以使用此功能)~~ (已完成)
-*   [x] ~~**API 文件:** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔，包括刪除聊天歷史端點。~~ (已完成)
+*   [x] ~~**API 文件:** `cognee-backend/API_DOCUMENTATION.md` 已創建並包含現有端點的初始文檔，包括刪除聊天歷史端點。~~ (已完成 - 已進一步增強)
 *   [x] ~~**對話管理:** 清除歷史記錄功能現在也調用後端API刪除歷史記錄。~~ (已完成)
 *   [x] ~~**測試:** 為後端刪除聊天歷史端點添加測試，並更新前端清除歷史測試。~~ (已完成)
 *   [x] ~~**測試:** 後端整合測試已重構為多個文件以提高組織性。~~ (已完成)

@@ -2,33 +2,57 @@ import { Document } from '@langchain/core/documents';
 import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 import { Chroma } from '@langchain/community/vectorstores/chroma';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
-import { GEMINI_API_KEY, CHROMA_URL, CHROMA_COLLECTION_NAME as DEFAULT_COLLECTION_NAME } from '../config'; // Assuming CHROMA_COLLECTION_NAME can be a default
+import {
+  GEMINI_API_KEY,
+  CHROMA_URL,
+  CHROMA_COLLECTION_NAME as DEFAULT_COLLECTION_NAME,
+  DEFAULT_EMBEDDING_MODEL_NAME // Import new config for embedding model name
+} from '../config';
 
-let embeddingsModel: GoogleGenerativeAIEmbeddings | undefined;
+let defaultEmbeddingsModel: GoogleGenerativeAIEmbeddings | undefined;
 
-if (GEMINI_API_KEY) {
-  embeddingsModel = new GoogleGenerativeAIEmbeddings({
-    apiKey: GEMINI_API_KEY,
-    modelName: 'text-embedding-004', // Consistent with llmService.ts
-  });
-  console.log('GoogleGenerativeAIEmbeddings initialized for vector-store.ts');
-} else {
-  console.warn('GEMINI_API_KEY is not set. Vector store operations requiring new embeddings will fail or use mock data if not pre-computed.');
+function createEmbeddingInstance(modelName?: string): GoogleGenerativeAIEmbeddings | undefined {
+  const effectiveModelName = modelName || DEFAULT_EMBEDDING_MODEL_NAME;
+  if (GEMINI_API_KEY) {
+    try {
+      const model = new GoogleGenerativeAIEmbeddings({
+        apiKey: GEMINI_API_KEY,
+        modelName: effectiveModelName,
+      });
+      console.log(`GoogleGenerativeAIEmbeddings instance created with model ${effectiveModelName}.`);
+      return model;
+    } catch (error) {
+      console.error(`Failed to initialize GoogleGenerativeAIEmbeddings with model ${effectiveModelName}:`, error);
+      return undefined;
+    }
+  } else {
+    console.warn('GEMINI_API_KEY is not set. Vector store operations requiring new embeddings will fail.');
+    return undefined;
+  }
 }
 
-function getInitializedEmbeddings(): GoogleGenerativeAIEmbeddings {
-  if (!embeddingsModel) {
-    if (GEMINI_API_KEY) { // Attempt re-initialization if key becomes available
-        embeddingsModel = new GoogleGenerativeAIEmbeddings({
-            apiKey: GEMINI_API_KEY,
-            modelName: 'text-embedding-004',
-        });
-        console.log('Re-initialized GoogleGenerativeAIEmbeddings in vector-store.ts');
-        return embeddingsModel;
+defaultEmbeddingsModel = createEmbeddingInstance(); // Initialize with default model name
+
+function getInitializedEmbeddings(modelName?: string): GoogleGenerativeAIEmbeddings {
+  // If a specific modelName is requested, try to create a new instance for it.
+  if (modelName && modelName !== DEFAULT_EMBEDDING_MODEL_NAME) {
+    const specificModel = createEmbeddingInstance(modelName);
+    if (specificModel) {
+      return specificModel;
     }
-    throw new Error('Embeddings model not initialized. GEMINI_API_KEY is missing.');
+    // Fallback to default if specific model creation failed, with a warning
+    console.warn(`Failed to create specific embedding model ${modelName}. Falling back to default.`);
   }
-  return embeddingsModel;
+
+  // Use or re-initialize the default model
+  if (!defaultEmbeddingsModel) {
+    console.log("Attempting to re-initialize default embeddings model in getInitializedEmbeddings...");
+    defaultEmbeddingsModel = createEmbeddingInstance(); // Uses default name
+    if (!defaultEmbeddingsModel) {
+      throw new Error('Default embeddings model not initialized and re-initialization failed. GEMINI_API_KEY might be missing or default model name is invalid.');
+    }
+  }
+  return defaultEmbeddingsModel;
 }
 
 // Helper function to get a Chroma vector store instance

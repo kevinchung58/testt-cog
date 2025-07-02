@@ -83,19 +83,21 @@ describe('ChatInterface Component', () => {
     expect(input.value).toBe('Hello AI');
   });
 
-  it('submits a question, displays user message, and streams AI response', async () => {
+  it('submits a question with default model, displays messages, and streams AI response', async () => {
     let onTokenCallback: (token: string) => void = () => {};
     let onCompleteCallback: () => void = () => {};
+    let capturedArgs: any = null;
 
-    (apiService.askQuery as vi.Mock).mockImplementation(
-      // Simplified: removed async from mock implementation as it just assigns callbacks
-      (question, onToken, onComplete, onError) => {
+    mockAskQuery.mockImplementation(
+      (question, sessionId, onToken, onComplete, onError, onSessionId, chatModelName) => {
+        capturedArgs = { question, sessionId, chatModelName }; // Capture all args
         onTokenCallback = onToken;
         onCompleteCallback = onComplete;
-        // Simulate async nature of API call setup if any, before streaming starts
-        // For this mock, we can call onToken and onComplete synchronously via act() later
       }
     );
+    // Ensure models.config is mocked or its default is known for the test
+    const { DEFAULT_SELECTED_CHAT_MODEL } = await vi.importActual('../../config/models.config');
+
 
     render(<ChatInterface />);
     const input = screen.getByPlaceholderText(/ask a question.../i);
@@ -109,15 +111,18 @@ describe('ChatInterface Component', () => {
     expect(screen.getByText('What is Cognee?')).toBeInTheDocument();
     expect(input).toHaveValue(''); // Input cleared
 
+    // Check that askQuery was called with the default selected model
+    expect(mockAskQuery).toHaveBeenCalled();
+    expect(capturedArgs.chatModelName).toBe(DEFAULT_SELECTED_CHAT_MODEL);
+
+
     // Check initial AI message (empty or placeholder)
-    // Need to wait for the initial empty AI message to be added to history
     await waitFor(() => {
-        const aiMessages = screen.getAllByText('AI:'); // Will find all elements starting with "AI:"
+        const aiMessages = screen.getAllByText('AI:');
         expect(aiMessages.length).toBe(1);
         const aiMessageContainer = aiMessages[0].closest('div[class*="messageContent"]');
-        expect(aiMessageContainer?.querySelector('p[class*="messageText"]')?.textContent).toBe(''); // Initially empty text
+        expect(aiMessageContainer?.querySelector('p[class*="messageText"]')?.textContent).toBe('');
     });
-
 
     // Simulate receiving tokens
     act(() => {
@@ -150,10 +155,35 @@ describe('ChatInterface Component', () => {
     expect(screen.queryByText(/ai is thinking.../i)).not.toBeInTheDocument();
   });
 
+  it('submits question with a user-selected model', async () => {
+    const { AVAILABLE_CHAT_MODELS } = await vi.importActual('../../config/models.config');
+    const selectedModel = AVAILABLE_CHAT_MODELS[1]; // e.g., 'gemini-1.0-pro'
+    let capturedArgs: any = null;
+
+    mockAskQuery.mockImplementation(
+      (question, sessionId, onToken, onComplete, onError, onSessionId, chatModelName) => {
+        capturedArgs = { question, sessionId, chatModelName };
+      }
+    );
+
+    render(<ChatInterface />);
+    const modelSelector = screen.getByLabelText(/chat model/i);
+    await userEvent.selectOptions(modelSelector, selectedModel);
+
+    const input = screen.getByPlaceholderText(/ask a question.../i);
+    await userEvent.type(input, 'Query with selected model');
+    await userEvent.click(screen.getByRole('button', { name: /send/i }));
+
+    expect(mockAskQuery).toHaveBeenCalled();
+    expect(capturedArgs.chatModelName).toBe(selectedModel);
+  });
+
+
   it('handles API error during streaming', async () => {
      let onErrorCallback: (error: Error) => void = () => {};
-     (apiService.askQuery as vi.Mock).mockImplementation(
-         (question, onToken, onComplete, onError) => { // Removed async
+     mockAskQuery.mockImplementation(
+         // Signature of askQuery in tests might need adjustment if it expects more params now
+         (question, sessionId, onToken, onComplete, onError, onSessionId, chatModelName) => {
              onErrorCallback = onError;
          }
      );

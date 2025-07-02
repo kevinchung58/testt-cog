@@ -10,6 +10,15 @@ The API is typically served from `/` relative to the backend's running port (e.g
 
 Currently, there is no authentication implemented for these endpoints.
 
+## LLM Configuration
+
+The Language Models (LLM) and embedding models used by the backend are configured via environment variables. If these variables are not set, the system will use the following defaults:
+
+*   **Default Chat Model:** `gemini-pro` 或 `gemini-2.0-flash`（可由 `DEFAULT_CHAT_MODEL_NAME` 環境變數設定）
+*   **Default Embedding Model:** `text-embedding-004`（可由 `DEFAULT_EMBEDDING_MODEL_NAME` 環境變數設定）
+
+Model selection via API is not currently supported.
+
 ---
 
 ## Endpoints
@@ -86,6 +95,10 @@ Currently, there is no authentication implemented for these endpoints.
         *   **Type:** `boolean`
         *   **Optional:** Yes (Defaults to `false`)
         *   **Description:** If true, the system will attempt to query the knowledge graph for relevant context in addition to the vector store.
+    *   `chatModelName`:
+        *   **Type:** `string`
+        *   **Optional:** Yes
+        *   **Description:** Specific chat model name to use for this query (e.g., "gemini-pro", "gemini-ultra"). If not provided, uses the backend's default chat model (see LLM Configuration section).
 *   **Success Response (200 OK with SSE Stream):**
     *   `Content-Type: text/event-stream`
     *   The stream sends multiple `data:` events, each typically a JSON string. Key event `type`s within the JSON:

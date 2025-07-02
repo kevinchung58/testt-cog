@@ -9,6 +9,7 @@ import {
   SavedPrompt as ApiSavedPrompt, // Use the interface from apiService
   apiDeleteChatHistory // Import the new service function
 } from '../services/apiService';
+import { AVAILABLE_CHAT_MODELS, DEFAULT_SELECTED_CHAT_MODEL } from '../../config/models.config'; // Import model config
 import styles from './ChatInterface.module.css';
 import { v4 as uuidv4 } from 'uuid'; // For generating client-side session ID
 
@@ -39,6 +40,7 @@ const ChatInterface: React.FC = () => {
   const [showPromptManager, setShowPromptManager] = useState<boolean>(false);
   const [newPromptName, setNewPromptName] = useState<string>('');
   const [promptToSave, setPromptToSave] = useState<string>('');
+  const [selectedChatModel, setSelectedChatModel] = useState<string>(DEFAULT_SELECTED_CHAT_MODEL);
 
 
   // Load sessionId, chat history, and saved prompts on mount
@@ -157,7 +159,8 @@ const ChatInterface: React.FC = () => {
       setIsLoading(false);
     };
 
-    askQuery(userMessage.text, sessionId, onToken, onComplete, onError, handleNewSessionId);
+    // Pass the selectedChatModel to askQuery
+    askQuery(userMessage.text, sessionId, onToken, onComplete, onError, handleNewSessionId, selectedChatModel);
   };
 
   const handleClearHistory = async () => {

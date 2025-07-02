@@ -18,9 +18,15 @@ import neo4j, { QueryResult } from 'neo4j-driver';
 
 jest.mock('@langchain/google-genai');
 jest.mock('neo4j-driver');
+jest.mock('../config', () => ({
+  ...jest.requireActual('../config'),
+  GEMINI_API_KEY: 'test-gemini-api-key',
+  DEFAULT_CHAT_MODEL_NAME: 'mock-chat-model-graph', // Specific for graph builder tests
+}));
 
 describe('Graph Builder Toolkit', () => {
   let mockLlm: Partial<ChatGoogleGenerativeAI>;
+  let mockConfig: any;
   let mockDriver: any;
   let mockSession: any;
   let mockTransaction: any;
@@ -31,16 +37,23 @@ describe('Graph Builder Toolkit', () => {
     relationships: [],
   };
 
+  beforeAll(() => {
+    mockConfig = require('../config');
+  });
+
   beforeEach(() => {
     (ChatGoogleGenerativeAI as jest.Mock).mockClear();
     (neo4j.driver as jest.Mock).mockClear();
 
+    // Configure the mockLlm to be returned by the ChatGoogleGenerativeAI constructor mock
+    // This ensures that when new ChatGoogleGenerativeAI is called inside the functions,
+    // it uses this mockLlm instance, allowing us to spy on its methods like .invoke or .pipe
     mockLlm = {
-      // .pipe().invoke() structure for chain simulation
-      pipe: jest.fn().mockReturnThis(),
-      invoke: jest.fn().mockResolvedValue(JSON.stringify(mockGraphElements)),
+      pipe: jest.fn().mockReturnThis(), // for chain .pipe().pipe()
+      invoke: jest.fn().mockResolvedValue(JSON.stringify(mockGraphElements)), // for chains ending in .invoke()
     };
     (ChatGoogleGenerativeAI as jest.Mock).mockImplementation(() => mockLlm);
+
 
     mockTransaction = {
       run: jest.fn().mockResolvedValue({ records: [], summary: {} } as QueryResult),
@@ -61,10 +74,26 @@ describe('Graph Builder Toolkit', () => {
   });
 
   describe('extractGraphElementsFromDocument', () => {
-    test('should call LLM and parse its JSON response', async () => {
+    test('should initialize LLM with configured model, call LLM, and parse its JSON response', async () => {
       const result = await extractGraphElementsFromDocument(mockDocument);
-      expect(mockLlm.invoke).toHaveBeenCalled();
+
+      expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+        apiKey: mockConfig.GEMINI_API_KEY,
+        modelName: mockConfig.DEFAULT_CHAT_MODEL_NAME,
+        temperature: 0.2, // Matching temperature in graph-builder.ts
+      });
+      expect(mockLlm.invoke).toHaveBeenCalledWith({ document_content: mockDocument.pageContent });
       expect(result).toEqual(mockGraphElements);
+    });
+
+    test('should use provided chatModelName for LLM when extracting graph elements', async () => {
+      const specificModel = "gemini-pro-vision"; // Example specific model
+      await extractGraphElementsFromDocument(mockDocument, specificModel);
+      expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+        apiKey: mockConfig.GEMINI_API_KEY,
+        modelName: specificModel,
+        temperature: 0.2,
+      });
     });
   });
 
@@ -97,18 +126,69 @@ describe('Graph Builder Toolkit', () => {
   });
 
   describe('queryGraph', () => {
-    test('should generate Cypher with LLM and execute it', async () => {
-      (mockLlm.invoke as jest.Mock).mockResolvedValue('MATCH (n) RETURN n.name AS name'); // LLM returns Cypher
+    test('should initialize LLM with configured model, generate Cypher, and execute it', async () => {
+      const generatedCypher = 'MATCH (n) RETURN n.name AS name';
+      // Ensure the invoke mock specific to this chain is set up
+      const llmOutputParserChainMock = { invoke: jest.fn().mockResolvedValue(generatedCypher) };
+      const llmPipeMock = { pipe: jest.fn().mockReturnValue(llmOutputParserChainMock) };
+      (ChatGoogleGenerativeAI as jest.Mock).mockImplementation(() => ({
+        pipe: jest.fn().mockReturnValue(llmPipeMock),
+      }));
+
+
       (mockSession.run as jest.Mock).mockResolvedValue({ records: [{ get: (key: string) => 'Test Node', toObject: () => ({name: 'Test Node'}) }], summary: {} } as unknown as QueryResult);
 
-      // Mock fetchGraphSchemaSummary for this test, assuming it's also part of the module or imported correctly
-      jest.spyOn(globalThis, 'fetchGraphSchemaSummary' as any).mockResolvedValue({ nodeLabels: ['TestLabel'], relationshipTypes: ['TEST_REL'], propertyKeys: ['name'] });
+      // Temporarily mock fetchGraphSchemaSummary within this test's scope or ensure it's globally mocked if preferred
+      const originalFetchGraphSchemaSummary = jest.requireActual('../graph-builder').fetchGraphSchemaSummary;
+      const fetchSchemaSpy = jest.spyOn(jest.requireActual('../graph-builder'), 'fetchGraphSchemaSummary').mockImplementation(async () => {
+        // Simulate what fetchGraphSchemaSummary would do regarding DB calls if needed, or just return mock.
+        // For this test, we want queryGraph to call the actual logic that might call the DB for schema.
+        // So, we mock the DB call inside fetchGraphSchemaSummary instead.
+        // However, the `beforeEach` already mocks session.run globally. So we need to refine.
+
+        // For this test, let's assume fetchGraphSchemaSummary is called and works (relies on global mockSession.run)
+        // Or, if we want to isolate queryGraph's LLM part more, mock fetchGraphSchemaSummary directly here.
+        return { nodeLabels: ['TestLabel'], relationshipTypes: ['TEST_REL'], propertyKeys: ['name'] };
+      });
 
 
       const results = await queryGraph('What is the test node?');
-      expect(mockLlm.invoke).toHaveBeenCalledWith(expect.objectContaining({ question: 'What is the test node?' }));
-      expect(mockSession.run).toHaveBeenCalledWith('MATCH (n) RETURN n.name AS name', undefined);
+
+      expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+        apiKey: mockConfig.GEMINI_API_KEY,
+        modelName: mockConfig.DEFAULT_CHAT_MODEL_NAME,
+        temperature: 0.2,
+      });
+      // Check that the LLM chain (via the final invoke) was called with schema and question
+      expect(llmOutputParserChainMock.invoke).toHaveBeenCalledWith(expect.objectContaining({
+         question: 'What is the test node?',
+         schema: expect.stringContaining('Node Labels: TestLabel')
+      }));
+      expect(mockSession.run).toHaveBeenCalledWith(generatedCypher, undefined);
       expect(results).toEqual([{name: 'Test Node'}]);
+
+      fetchSchemaSpy.mockRestore(); // Clean up spy
+    });
+
+    test('should use provided chatModelName for LLM when querying graph', async () => {
+      const specificModel = "gemini-1.5-pro-latest";
+      const generatedCypher = 'MATCH (n) RETURN n';
+      const llmOutputParserChainMock = { invoke: jest.fn().mockResolvedValue(generatedCypher) };
+      const llmPipeMock = { pipe: jest.fn().mockReturnValue(llmOutputParserChainMock) };
+      (ChatGoogleGenerativeAI as jest.Mock).mockImplementation(() => ({
+        pipe: jest.fn().mockReturnValue(llmPipeMock),
+      }));
+
+      // Mock fetchGraphSchemaSummary to avoid its DB call / ensure it returns something simple
+      jest.spyOn(jest.requireActual('../graph-builder'), 'fetchGraphSchemaSummary')
+          .mockResolvedValue({ nodeLabels: ['Any'], relationshipTypes: ['ANY_REL'], propertyKeys: ['anyProp'] });
+
+      await queryGraph('Any question', undefined, specificModel);
+      expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
+        apiKey: mockConfig.GEMINI_API_KEY,
+        modelName: specificModel,
+        temperature: 0.2,
+      });
     });
   });
 

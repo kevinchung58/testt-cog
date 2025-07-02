@@ -114,20 +114,10 @@ app.post('/ingest', upload.single('file'), async (req: Request<{}, {}, {}, Inges
 
 interface QueryBody {
   question: string;
-  sessionId?: string; // Optional: client can send a session ID
+  sessionId?: string;
   collectionName?: string;
-  chat_history?: Array<{ type: 'human' | 'ai'; content: string }>; // For conversational chain
-  use_knowledge_graph?: boolean;
-}
-
-// POST endpoint for queries (supports basic RAG and conversational RAG)
-app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
-  let { // Use let because sessionId might be reassigned
-    question,
-    sessionId,
-    collectionName = DEFAULT_CHROMA_COLLECTION_NAME,
-    chat_history, // This is the LangChain format chat_history, not to be confused with our persisted history
-    use_knowledge_graph = false
+  chat_history?: Array<{ type: 'human' | 'ai'; content: string }>;
+// ...existing code...
   } = req.body;
 
   if (!question || typeof question !== 'string') {
@@ -173,9 +163,10 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
     // Knowledge Graph Query (Optional)
     let knowledgeGraphContext = "";
     if (use_knowledge_graph) {
-        console.log("Querying knowledge graph...");
+        console.log(`Querying knowledge graph with model: ${chatModelName || 'default'}...`);
         try {
-            const graphResults = await queryKnowledgeGraph(question); // From graph-builder.ts
+            // Pass chatModelName to queryKnowledgeGraph
+            const graphResults = await queryKnowledgeGraph(question, undefined, chatModelName);
             if (graphResults && graphResults.length > 0) {
                 knowledgeGraphContext = "Knowledge Graph Results:\n" + graphResults.map(r => JSON.stringify(r)).join("\n");
                 console.log("Knowledge graph context retrieved:", knowledgeGraphContext);
@@ -194,8 +185,9 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
         : question;
 
     if (chat_history && chat_history.length > 0) {
-      console.log('Using Conversational RAG chain.');
-      const conversationalChain = createConversationalChain(retriever);
+      console.log(`Using Conversational RAG chain with model: ${chatModelName || 'default'}.`);
+      // Pass chatModelName to createConversationalChain
+      const conversationalChain = createConversationalChain(retriever, chatModelName);
       const langchainMessages: BaseMessage[] = chat_history.map(msg =>
         msg.type === 'human' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
       );
@@ -203,19 +195,19 @@ app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
       // Streaming for ConversationalRetrievalQAChain
       const stream = await conversationalChain.stream({ question: questionForRAG, chat_history: langchainMessages });
       for await (const chunk of stream) {
-        if (chunk.answer) { // ConversationalRetrievalQAChain often yields chunks with 'answer'
+        if (chunk.answer) {
           res.write(`data: ${JSON.stringify({ token: chunk.answer })}\n\n`);
           finalAnswer += chunk.answer;
         }
-        if (chunk.sourceDocuments) { // Capture source documents
+        if (chunk.sourceDocuments) {
             sourceDocuments = chunk.sourceDocuments;
         }
       }
     } else {
-      console.log('Using basic RAG chain.');
-      const ragChain = createRAGChain(retriever);
+      console.log(`Using basic RAG chain with model: ${chatModelName || 'default'}.`);
+      // Pass chatModelName to createRAGChain
+      const ragChain = createRAGChain(retriever, chatModelName);
       // Streaming for RetrievalQAChain (if it yields string tokens directly)
-      // The .stream() method on RetrievalQAChain might directly yield string tokens from the LLM.
       // Or it might yield objects like { answer: "...", sourceDocuments: [...] } if underlying LLM is not a streaming type
       // Let's assume it streams final answer tokens
       const stream = await ragChain.stream({ query: questionForRAG }); // 'query' is the default input key
@@ -330,7 +322,7 @@ app.delete('/chat/history/:sessionId', async (req, res) => {
     res.status(500).json({ message: 'Failed to delete chat history.', error: error.message });
   }
 });
-
+});
 
 // Refactor graph utility endpoints
 app.get('/graph-schema', async (req, res) => {
@@ -407,6 +399,7 @@ app.get('/graph/node/:id/neighbors', async (req, res) => {
 // For now, they are removed as their direct counterparts in queryOrchestrationService are gone,
 // and queryKnowledgeGraph is a more general Q&A interface.
 // They can be re-added if specific graph traversal/visualization queries are needed from graph-builder.
+
 
 // Saved Prompts Endpoints
 app.post('/prompts', async (req, res) => {

@@ -9,10 +9,11 @@
   justify-content: space-between; /* Puts buttons on opposite ends */
   align-items: center;
   margin-bottom: 10px;
+  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+  gap: 10px; /* Add gap for wrapped items */
 }
 
 .clearButton, .managePromptsButton {
-  /* Basic button styling, can be enhanced */
   padding: 6px 12px;
   font-size: 0.9em;
   /* Uses global button styles potentially, or define more here */
@@ -202,4 +203,25 @@
   }
 
   /* Button will be full-width due to global styles for button in form context if not overridden */
+}
+
+/* Model Selector Styles */
+.modelSelectorContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelSelectorLabel {
+  font-size: 0.9em;
+  color: var(--secondary-text-color, #6c757d);
+}
+
+.modelSelector {
+  padding: 5px 8px;
+  border-radius: var(--border-radius-sm, 3px);
+  border: 1px solid var(--border-color, #ccc);
+  background-color: var(--input-background-color, #fff);
+  font-size: 0.9em;
+  min-width: 150px; /* Give it some space */
 }

@@ -6,7 +6,7 @@
 
 .chatControls {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-between; /* Puts buttons on opposite ends */
   align-items: center;
   margin-bottom: 10px;
   flex-wrap: wrap; /* Allow controls to wrap on smaller screens */

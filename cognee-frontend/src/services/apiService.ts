@@ -48,7 +48,6 @@ export interface ApiChatMessage { // Renaming to avoid conflict if imported from
   timestamp?: string; // Neo4j stores it, can be returned
 }
 
-
 export const askQuery = async (
   question: string,
   sessionId: string | null,

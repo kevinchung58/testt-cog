@@ -25,21 +25,21 @@
 **後端開發 (Node.js/Express API)**
 
 *   [x] **LLM 整合 (LLM Integration):**
-    *   [x] 選擇並設定使用 Google Gemini (模型名稱可通過環境變數配置，預設為 `gemini-pro` 和 `text-embedding-004`) (Choose and configure Google Gemini - model names configurable via env vars, defaulting to `gemini-pro` and `text-embedding-004`)
-    *   [x] LLM API 呼叫邏輯已封裝在 `cognee-backend/src/toolkit/` (query-engine, graph-builder, vector-store) (LLM API call logic encapsulated in `cognee-backend/src/toolkit/`)
-    *   [x] API 金鑰管理透過 `.env` 檔案和 `src/config.ts` 處理 (API key management via `.env` file and `src/config.ts`)
+    *   [x] 選擇並設定使用 Google Gemini（chat 預設 `gemini-pro` 或 `gemini-2.0-flash`，embedding 預設 `text-embedding-004`，可由環境變數設定）(Choose and configure Google Gemini - model names configurable via env vars, defaulting to `gemini-pro`/`gemini-2.0-flash` and `text-embedding-004`)
+    *   [x] LLM API 呼叫邏輯已封裝於 `cognee-backend/src/toolkit/` (query-engine, graph-builder, vector-store)
+    *   [x] API 金鑰管理透過 `.env` 檔案與 `src/config.ts` 處理 (API key management via `.env` file and `src/config.ts`)
 *   [x] **API 端點設計 (API Endpoint Design):**
-    *   [x] `POST /ingest`: 接收檔案，處理並存儲到向量數據庫，可選建立知識圖譜 (Receives file, processes, stores in vector DB, optionally builds knowledge graph)
-    *   [x] `POST /query`: 接收問題（可選聊天歷史、知識圖譜使用標誌、會話ID、聊天模型名稱），與 LLM 互動，串流回傳結果，並保存聊天訊息至Neo4j。(Receives question (optional chat history, KG usage flag, session ID, chat model name), interacts with LLM, streams back result using SSE, and saves chat messages to Neo4j.)
-    *   [x] `GET /graph-schema`: 獲取 Neo4j 圖譜摘要 (Get Neo4j graph schema summary)
+    *   [x] `POST /ingest`: 接收檔案，處理並存入向量資料庫，可選擇建立知識圖譜 (Receives file, processes, stores in vector DB, optionally builds knowledge graph)
+    *   [x] `POST /query`: 接收問題（可選聊天歷史、知識圖譜標記、會話ID、聊天模型名稱），與 LLM 互動，串流回傳結果，並儲存聊天訊息至 Neo4j。(Receives question (optional chat history, KG usage flag, session ID, chat model name), interacts with LLM, streams back result using SSE, and saves chat messages to Neo4j.)
+    *   [x] `GET /graph-schema`: 取得 Neo4j 圖譜摘要 (Get Neo4j graph schema summary)
     *   [x] `POST /query-graph`: 使用自然語言查詢知識圖譜 (Query knowledge graph with natural language)
-    *   [x] `GET /graph/overview`: (新增) 獲取圖譜概覽數據，可選搜索詞和限制 (New: Get graph overview data, optional search term and limit)
-    *   [x] `GET /graph/node/:id/neighbors`: (新增) 獲取特定節點及其鄰居的數據 (New: Get data for a specific node and its neighbors)
-    *   [x] `GET /chat/history/:sessionId`: (新增) 獲取特定會話的聊天歷史 (New: Get chat history for a specific session)
+    *   [x] `GET /graph/overview`: (新增) 取得圖譜概覽數據，可選搜尋詞和限制 (New: Get graph overview data, optional search term and limit)
+    *   [x] `GET /graph/node/:id/neighbors`: (新增) 取得特定節點及其鄰居的數據 (New: Get data for a specific node and its neighbors)
+    *   [x] `GET /chat/history/:sessionId`: (新增) 取得特定會話的聊天歷史 (New: Get chat history for a specific session)
     *   [x] `DELETE /chat/history/:sessionId`: (新增) 刪除特定會話的聊天歷史 (New: Delete chat history for a specific session)
-    *   [x] `POST /prompts`: (新增) 保存新的用戶自定義提示 (New: Save a new user-defined prompt)
-    *   [x] `GET /prompts`: (新增) 檢索所有已保存的用戶自定義提示 (New: Retrieve all saved user-defined prompts)
-    *   [x] `DELETE /prompts/:promptId`: (新增) 刪除指定的已保存提示 (New: Delete a specific saved prompt)
+    *   [x] `POST /prompts`: (新增) 儲存新的用戶自定義提示 (New: Save a new user-defined prompt)
+    *   [x] `GET /prompts`: (新增) 查詢所有已儲存的用戶自定義提示 (New: Retrieve all saved user-defined prompts)
+    *   [x] `DELETE /prompts/:promptId`: (新增) 刪除指定的已儲存提示 (New: Delete a specific saved prompt)
 *   [x] **請求處理與驗證 (Request Handling & Validation):**
     *   [x] 使用 `express.json()` 和 `multer` 處理請求 (Using `express.json()` and `multer` for request handling)
     *   [x] `/ingest`, `/query`, `/graph/overview`, `/chat/history/:sessionId`, `/prompts` 中有基本的輸入驗證 (Basic input validation in routes)
@@ -115,7 +115,6 @@
     *   [x] 後端整合測試已重構為多個文件以提高組織性。 (Backend integration tests refactored into multiple files for better organization.)
     *   [x] 後端單元測試已更新以反映對LLM/嵌入模型名稱的可配置性。(Backend unit tests updated for configurable LLM/embedding model names.)
     *   [x] 後端 `/query` 整合測試已更新以測試 `chatModelName` 參數。(Backend `/query` integration tests updated for `chatModelName` parameter.)
-    *   [ ] 端對端測試 (Cypress, Playwright) (End-to-end tests) - (Not implemented)
 *   [ ] **國際化 (i18n) / 本地化 (l10n) (如果需要):**
     *   [ ] 未實現 (Not implemented)
 
@@ -153,7 +152,7 @@
 *   [x] ~~**前端:** `KnowledgeGraphVisualizer.tsx` - `fetchData` 和 `handleNodeDoubleClick` 中的錯誤處理可以更細緻地向使用者顯示問題所在。~~ (已完成)
 *   [x] ~~**對話歷史持久化:** 使用 Neo4j 實現後端聊天歷史持久化，並更新前端以使用此功能。~~ (已完成)
 *   [x] ~~**測試覆蓋率:** 為後端 `/ingest`、`/graph-schema` 端點以及前端 `ChatInterface` 和 `KnowledgeGraphVisualizer` 的新功能/錯誤處理添加測試。~~ (已完成)
-*   [x] **(可選) UI/UX 改進:**
+*   [x] **(可選) UI/UX 改进:**
     *   [x] ~~`KnowledgeGraphVisualizer`: 篩選器在行動裝置上的可用性。~~ (已評估，現有 CSS 基本可接受)
     *   [x] ~~`ChatInterface`: 允許複製 AI 回應。~~ (已完成)
 *   [x] ~~**提示工程:** (可選) 允許使用者儲存和重複使用 prompts (已使用 Neo4j 實現後端持久化，並更新前端以使用此功能)~~ (已完成)
@@ -164,5 +163,3 @@
 *   [x] ~~**LLM整合:** 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)~~ (已完成)
 *   [x] ~~**測試:** 後端單元測試和整合測試已更新以反映對LLM模型名稱的可配置性/參數化。~~ (已完成)
 *   [x] ~~**前端開發:** `ChatInterface.tsx` 已添加模型選擇下拉框，並將所選模型傳遞給後端 `/query` API。相關測試已更新。~~ (已完成)
-
-```

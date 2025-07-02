@@ -14,8 +14,8 @@ Currently, there is no authentication implemented for these endpoints.
 
 The Language Models (LLM) and embedding models used by the backend are configured via environment variables. If these variables are not set, the system will use the following defaults:
 
-*   **Default Chat Model:** `gemini-pro` (configurable via `DEFAULT_CHAT_MODEL_NAME` environment variable)
-*   **Default Embedding Model:** `text-embedding-004` (configurable via `DEFAULT_EMBEDDING_MODEL_NAME` environment variable)
+*   **Default Chat Model:** `gemini-pro` 或 `gemini-2.0-flash`（可由 `DEFAULT_CHAT_MODEL_NAME` 環境變數設定）
+*   **Default Embedding Model:** `text-embedding-004`（可由 `DEFAULT_EMBEDDING_MODEL_NAME` 環境變數設定）
 
 Model selection via API is not currently supported.
 

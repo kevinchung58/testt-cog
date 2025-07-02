@@ -117,19 +117,7 @@ interface QueryBody {
   sessionId?: string;
   collectionName?: string;
   chat_history?: Array<{ type: 'human' | 'ai'; content: string }>;
-  use_knowledge_graph?: boolean;
-  chatModelName?: string; // New optional field for specific chat model
-}
-
-// POST endpoint for queries (supports basic RAG and conversational RAG)
-app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
-  let {
-    question,
-    sessionId,
-    collectionName = DEFAULT_CHROMA_COLLECTION_NAME,
-    chat_history,
-    use_knowledge_graph = false,
-    chatModelName // Extract the new field
+// ...existing code...
   } = req.body;
 
   if (!question || typeof question !== 'string') {
@@ -334,7 +322,7 @@ app.delete('/chat/history/:sessionId', async (req, res) => {
     res.status(500).json({ message: 'Failed to delete chat history.', error: error.message });
   }
 });
-
+});
 
 // Refactor graph utility endpoints
 app.get('/graph-schema', async (req, res) => {
@@ -411,6 +399,7 @@ app.get('/graph/node/:id/neighbors', async (req, res) => {
 // For now, they are removed as their direct counterparts in queryOrchestrationService are gone,
 // and queryKnowledgeGraph is a more general Q&A interface.
 // They can be re-added if specific graph traversal/visualization queries are needed from graph-builder.
+
 
 // Saved Prompts Endpoints
 app.post('/prompts', async (req, res) => {

@@ -445,22 +445,11 @@ app.delete('/prompts/:promptId', async (req, res) => {
 });
 
 
-app.listen(port, () => {
-  console.log(`Backend server (LangChain Integrated) listening on port ${port}`);
-});
+// Only start the server if this file is executed directly
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Backend server (LangChain Integrated) listening on port ${port}`);
+  });
+}
 
-EOF
-
-echo "server.ts refactored to use toolkit modules."
-# This refactoring makes significant changes:
-# - Imports from toolkit modules.
-# - /ingest uses processFileToDocuments, addDocumentsToVectorStore, and optionally documentsToGraph.
-# - /query uses createVectorStoreRetriever and then createRAGChain or createConversationalChain.
-#   - Implements SSE streaming for /query.
-#   - Adds optional knowledge graph query via use_knowledge_graph flag.
-# - /graph-schema-summary (renamed to /graph-schema) uses fetchNeo4jGraphSchema from graph-builder.
-# - Added /query-graph as a dedicated endpoint for natural language queries to the graph.
-# - Removed old /node-neighbors and /graph-data as their specific logic would need to be reimplemented in graph-builder.ts if still needed.
-# - Removed old service imports.
-# - Added collectionName and buildGraph query params to /ingest.
-# - Added collectionName, chat_history, use_knowledge_graph to /query body.
+export default app;

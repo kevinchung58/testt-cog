@@ -1,13 +1,14 @@
 import * as graphBuilder from '../graph-builder';
 import { Document } from '@langchain/core/documents';
+import { AIMessage } from '@langchain/core/messages';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import neo4j, { QueryResult } from 'neo4j-driver';
 import { GraphElements } from '../graph-builder';
 
 jest.mock('@langchain/google-genai');
 jest.mock('neo4j-driver');
-jest.mock('../config', () => ({
-  ...jest.requireActual('../config'),
+jest.mock('../../config', () => ({
+  ...jest.requireActual('../../config'),
   GEMINI_API_KEY: 'test-gemini-api-key',
   DEFAULT_CHAT_MODEL_NAME: 'mock-chat-model-graph',
 }));
@@ -26,7 +27,7 @@ describe('Graph Builder Toolkit', () => {
   };
 
   beforeAll(() => {
-    mockConfig = require('../config');
+    mockConfig = require('../../config');
   });
 
   beforeEach(() => {
@@ -35,7 +36,7 @@ describe('Graph Builder Toolkit', () => {
 
     mockLlm = {
       pipe: jest.fn().mockReturnThis(),
-      invoke: jest.fn().mockResolvedValue(JSON.stringify(mockGraphElements)),
+      invoke: jest.fn().mockResolvedValue(new AIMessage(JSON.stringify(mockGraphElements))),
     };
     (ChatGoogleGenerativeAI as unknown as jest.Mock).mockImplementation(() => mockLlm);
 
@@ -63,7 +64,7 @@ describe('Graph Builder Toolkit', () => {
 
       expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
         apiKey: mockConfig.GEMINI_API_KEY,
-        modelName: mockConfig.DEFAULT_CHAT_MODEL_NAME,
+        model: mockConfig.DEFAULT_CHAT_MODEL_NAME,
         temperature: 0.2,
       });
       expect(mockLlm.invoke).toHaveBeenCalledWith({ document_content: mockDocument.pageContent });

@@ -31,8 +31,6 @@ function createEmbeddingInstance(modelName?: string): GoogleGenerativeAIEmbeddin
   }
 }
 
-defaultEmbeddingsModel = createEmbeddingInstance(); // Initialize with default model name
-
 function getInitializedEmbeddings(modelName?: string): GoogleGenerativeAIEmbeddings {
   // If a specific modelName is requested, try to create a new instance for it.
   if (modelName && modelName !== DEFAULT_EMBEDDING_MODEL_NAME) {
@@ -44,14 +42,16 @@ function getInitializedEmbeddings(modelName?: string): GoogleGenerativeAIEmbeddi
     console.warn(`Failed to create specific embedding model ${modelName}. Falling back to default.`);
   }
 
-  // Use or re-initialize the default model
+  // Lazy-initialize the default model if it hasn't been already.
   if (!defaultEmbeddingsModel) {
-    console.log("Attempting to re-initialize default embeddings model in getInitializedEmbeddings...");
+    console.log("Initializing default embeddings model for the first time...");
     defaultEmbeddingsModel = createEmbeddingInstance(); // Uses default name
-    if (!defaultEmbeddingsModel) {
-      throw new Error('Default embeddings model not initialized and re-initialization failed. GEMINI_API_KEY might be missing or default model name is invalid.');
-    }
   }
+
+  if (!defaultEmbeddingsModel) {
+    throw new Error('Default embeddings model is not available. Check GEMINI_API_KEY or model name in config.');
+  }
+
   return defaultEmbeddingsModel;
 }
 

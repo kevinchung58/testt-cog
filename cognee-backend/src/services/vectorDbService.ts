@@ -1,8 +1,8 @@
-import { ChromaClient, Collection, OpenAIEmbeddingFunction } from 'chromadb'; // ChromaClient from chromadb package
-import { CHROMA_URL, OPENAI_API_KEY } from '../config';
+import { ChromaClient, Collection } from 'chromadb'; // ChromaClient from chromadb package
+import { CHROMA_URL } from '../config';
+import { generateEmbeddings } from './llmService';
 
 let client: ChromaClient | undefined;
-let openaiEmbedder: OpenAIEmbeddingFunction | undefined;
 
 function getClient(): ChromaClient {
   if (!client) {
@@ -20,12 +20,9 @@ function getClient(): ChromaClient {
   return client;
 }
 
-// Initialize OpenAIEmbedder if API key is available
-if (OPENAI_API_KEY) {
-    openaiEmbedder = new OpenAIEmbeddingFunction({ openai_api_key: OPENAI_API_KEY });
-} else {
-    console.warn('OPENAI_API_KEY not set, ChromaDB will not be able to use OpenAI embeddings by default for query_texts.');
-}
+// The concept of a default embedder attached to the collection is removed.
+// Instead, we will generate embeddings explicitly using our llmService
+// before calling search functions.
 
 export async function getOrCreateCollection(collectionName: string): Promise<Collection> {
   const chromaClient = getClient();
@@ -100,37 +97,33 @@ export async function searchSimilarChunks(
   }
 }
 
-// Example of querying with text (if collection was created with an embedder)
+/**
+ * Generates embeddings for a list of texts and then searches for similar chunks.
+ * @param collectionName The name of the collection to search in.
+ * @param queryTexts The texts to search for.
+ * @param k The number of similar chunks to return.
+ * @returns A promise that resolves to the search results.
+ */
 export async function searchSimilarChunksWithText(
- collectionName: string,
- queryTexts: string[],
- k: number = 5,
+  collectionName: string,
+  queryTexts: string[],
+  k: number = 5,
 ): Promise<any[][]> {
- if (!openaiEmbedder) {
-     console.warn("OpenAIEmbedder not available. Cannot search with text without an API key.");
-     return queryTexts.map(() => []);
- }
- try {
-     const collection = await getClient().getCollection({name: collectionName, embeddingFunction: openaiEmbedder});
-     const results = await collection.query({
-         queryTexts: queryTexts,
-         nResults: k,
-     });
-     console.log(`Search (with text) in '${collectionName}' found results for ${queryTexts.length} queries.`);
-     return results.documents ?? [];
- } catch (error: any) {
-     console.error(`Error searching with text in collection '${collectionName}':`, error.message);
-     throw error;
- }
+  if (!queryTexts || queryTexts.length === 0) {
+    return [];
+  }
+  try {
+    console.log(`Generating embeddings for ${queryTexts.length} query texts.`);
+    const queryEmbeddings = await generateEmbeddings(queryTexts);
+    console.log(`Searching for similar chunks with generated embeddings.`);
+    return await searchSimilarChunks(collectionName, queryEmbeddings, k);
+  } catch (error: any) {
+    console.error(`Error generating embeddings or searching with text in collection '${collectionName}':`, error.message);
+    throw error;
+  }
 }
 
 // Exported for testing purposes only
 export function _resetChromaClientForTesting() {
   client = undefined;
-  // Re-initialize openaiEmbedder based on the current state of OPENAI_API_KEY (which might be mocked in tests)
-  if (OPENAI_API_KEY) {
-      openaiEmbedder = new OpenAIEmbeddingFunction({ openai_api_key: OPENAI_API_KEY });
-  } else {
-      openaiEmbedder = undefined;
-  }
 }

@@ -20,9 +20,9 @@ describe('Query Engine Toolkit', () => {
   });
 
   beforeEach(() => {
-    (ChatGoogleGenerativeAI as jest.Mock).mockClear();
-    (RetrievalQAChain.fromLLM as jest.Mock).mockClear();
-    (ConversationalRetrievalQAChain.fromLLM as jest.Mock).mockClear();
+    (ChatGoogleGenerativeAI as unknown as jest.Mock).mockClear();
+    (RetrievalQAChain.fromLLM as unknown as jest.Mock).mockClear();
+    (ConversationalRetrievalQAChain.fromLLM as unknown as jest.Mock).mockClear();
 
     mockRetriever = {} as VectorStoreRetriever; // Simple mock
 

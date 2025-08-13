@@ -40,7 +40,7 @@ describe('API Endpoints - Chat History', () => {
   // This file focuses on dedicated history retrieval and deletion endpoints.
 
   describe('GET /chat/history/:sessionId', () => {
-    let mockGetChatHistory: vi.Mock;
+    let mockGetChatHistory: jest.Mock;
     beforeEach(() => {
         mockGetChatHistory = jest.requireMock('../toolkit/graph-builder').getChatHistory;
         mockGetChatHistory.mockReset();
@@ -61,7 +61,7 @@ describe('API Endpoints - Chat History', () => {
   });
 
   describe('DELETE /chat/history/:sessionId', () => {
-    let mockDeleteChatHistory: vi.Mock;
+    let mockDeleteChatHistory: jest.Mock;
     beforeEach(() => {
       mockDeleteChatHistory = jest.requireMock('../toolkit/graph-builder').deleteChatHistory;
       mockDeleteChatHistory.mockReset();

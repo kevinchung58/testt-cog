@@ -3,7 +3,7 @@ import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 
 let driver: Driver | undefined;
 
-function getDriver(): Driver {
+export function getDriver(): Driver {
   if (!driver) {
     try {
       driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
@@ -31,7 +31,7 @@ export async function executeQuery(query: string, params?: Record<string, any>):
     return result;
   } catch (error: any) {
     console.error(`Error executing Cypher query: ${query}`, error.message);
-    throw new Neo4jError(`Failed to execute query. ${error.message}`, error.code);
+    throw new Error(`Failed to execute query. ${error.message}`);
   } finally {
     if (session) {
       await session.close();

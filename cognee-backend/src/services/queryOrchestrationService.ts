@@ -1,5 +1,6 @@
 import { generateCypherQuery, generateEmbeddings } from './llmService'; // generateEmbeddings added
-import { executeQuery as executeNeo4jQuery, QueryResult } from './neo4jService';
+import { executeQuery as executeNeo4jQuery } from './neo4jService';
+import { QueryResult } from 'neo4j-driver';
 import { searchSimilarChunks as searchChroma } from './vectorDbService'; // getOrCreateCollection not strictly needed here if searchChroma ensures it
 import { CHROMA_COLLECTION_NAME } from '../config'; // Add this
 
@@ -33,7 +34,7 @@ function formatNeo4jResults(neo4jResult: QueryResult): string[] {
       } else {
         valueString = String(value);
       }
-      recordString += `${key}: ${valueString}; `;
+      recordString += `${String(key)}: ${valueString}; `;
     });
     return recordString.trim();
   }).slice(0, 10); // Limit to first 10 results for context brevity

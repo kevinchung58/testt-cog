@@ -50,9 +50,9 @@ import { documentsToGraph } from '../toolkit/graph-builder';
 
 
 describe('API Endpoints - POST /ingest', () => {
-  let processFileToDocumentsMock: vi.Mock;
-  let addDocumentsToVectorStoreMock: vi.Mock;
-  let documentsToGraphMock: vi.Mock;
+  let processFileToDocumentsMock: jest.Mock;
+  let addDocumentsToVectorStoreMock: jest.Mock;
+  let documentsToGraphMock: jest.Mock;
 
   beforeEach(() => {
     processFileToDocumentsMock = jest.requireMock('../toolkit/data-processor').processFileToDocuments;

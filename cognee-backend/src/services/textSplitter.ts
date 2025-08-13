@@ -16,34 +16,52 @@ export function splitText(text: string, options: TextSplitterOptions): string[] 
     const end = Math.min(i + chunkSize, text.length);
     chunks.push(text.substring(i, end));
     i += (chunkSize - chunkOverlap);
-    if (i >= text.length && end < text.length) { // Ensure last part is captured if loop condition makes i jump over
-         // This condition might need refinement depending on desired behavior for the very last chunk with overlap
-    }
   }
-  // A simple way to ensure the last chunk is always included up to text.length
-  // This might result in a final chunk smaller than chunkSize if there's no overlap or specific handling
-  // For a more robust solution, RecursiveCharacterTextSplitter logic from langchain is a good reference.
   return chunks.filter(chunk => chunk.trim() !== ''); // Remove empty chunks
 }
 
-// Example of a sentence splitter (very basic)
+// A more robust, manual sentence splitter
 export function splitBySentences(text: string, maxCharsPerChunk: number = 1000): string[] {
-    const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
-    if (sentences.length === 0 && text.trim().length > 0) { // Handle case with no sentence terminators
+    if (!text || text.trim() === '') {
+        return [];
+    }
+
+    const sentences: string[] = [];
+    const terminators = ['.', '!', '?'];
+    let lastIndex = 0;
+
+    for (let i = 0; i < text.length; i++) {
+        if (terminators.includes(text[i])) {
+            // Check if the next character is a space or end of string, to better handle abbreviations etc.
+            if (i === text.length - 1 || text[i+1] === ' ') {
+                sentences.push(text.substring(lastIndex, i + 1).trim());
+                lastIndex = i + 2; // Move past the terminator and the space
+            }
+        }
+    }
+    // Add the remainder of the text if it's not empty
+    if (lastIndex < text.length) {
+        sentences.push(text.substring(lastIndex).trim());
+    }
+
+    const filteredSentences = sentences.filter(s => s.length > 0);
+
+    if (filteredSentences.length === 0 && text.trim().length > 0) {
         return [text];
     }
 
     const chunks: string[] = [];
     let currentChunk = "";
-    for (const sentence of sentences) {
-        if ((currentChunk + sentence).length > maxCharsPerChunk && currentChunk.length > 0) {
-            chunks.push(currentChunk.trim());
-            currentChunk = "";
+    for (const sentence of filteredSentences) {
+        if ((currentChunk + ' ' + sentence).length > maxCharsPerChunk && currentChunk.length > 0) {
+            chunks.push(currentChunk);
+            currentChunk = sentence;
+        } else {
+            currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
         }
-        currentChunk += sentence;
     }
-    if (currentChunk.trim().length > 0) {
-        chunks.push(currentChunk.trim());
+    if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
     }
     return chunks;
 }

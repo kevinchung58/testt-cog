@@ -1,7 +1,7 @@
 import { Document } from '@langchain/core/documents';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter'; // Or from '@langchain/textsplitters' if this path is wrong
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
-import { TextLoader } from '@langchain/community/document_loaders/fs/text';
+import { TextLoader } from 'langchain/document_loaders/fs/text';
 import { DocxLoader } from '@langchain/community/document_loaders/fs/docx';
 import * as fs from 'fs/promises'; // For checking file existence, etc.
 import *

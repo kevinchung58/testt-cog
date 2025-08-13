@@ -1,13 +1,13 @@
 import { processFileToDocuments, SupportedFileMimeTypes } from '../data-processor';
 import { Document } from '@langchain/core/documents';
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
-import { TextLoader } from '@langchain/community/document_loaders/fs/text';
+import { TextLoader } from 'langchain/document_loaders/fs/text';
 import { DocxLoader } from '@langchain/community/document_loaders/fs/docx';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 
 // Mock the loaders and splitter
 jest.mock('@langchain/community/document_loaders/fs/pdf');
-jest.mock('@langchain/community/document_loaders/fs/text');
+jest.mock('langchain/document_loaders/fs/text');
 jest.mock('@langchain/community/document_loaders/fs/docx');
 jest.mock('langchain/text_splitter');
 
@@ -20,10 +20,10 @@ describe('Data Processor Toolkit', () => {
 
   beforeEach(() => {
     // Reset mocks before each test
-    (PDFLoader as jest.Mock).mockClear();
-    (TextLoader as jest.Mock).mockClear();
-    (DocxLoader as jest.Mock).mockClear();
-    (RecursiveCharacterTextSplitter as jest.Mock).mockClear();
+    (PDFLoader as unknown as jest.Mock).mockClear();
+    (TextLoader as unknown as jest.Mock).mockClear();
+    (DocxLoader as unknown as jest.Mock).mockClear();
+    (RecursiveCharacterTextSplitter as unknown as jest.Mock).mockClear();
 
     // Mock implementations
     (PDFLoader.prototype.load as jest.Mock) = jest.fn().mockResolvedValue(mockDocuments);

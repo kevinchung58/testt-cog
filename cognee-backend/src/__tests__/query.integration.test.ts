@@ -60,7 +60,7 @@ describe('API Endpoints - POST /query', () => {
   let mockRagChain: any;
   let mockConversationalChain: any;
   let mockRetriever: any;
-  let mockQueryGraph: vi.Mock;
+  let mockQueryGraph: jest.Mock;
 
 
   beforeEach(() => {

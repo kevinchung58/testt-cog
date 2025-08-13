@@ -41,7 +41,7 @@ describe('API Endpoints - Graph Functionality', () => {
 
   describe('GET /graph-schema', () => {
     const mockSchema = { nodeLabels: ['Person', 'Document'], relationshipTypes: ['APPEARS_IN'], propertyKeys: ['name'] };
-    let mockFetchGraphSchemaSummary: vi.Mock;
+    let mockFetchGraphSchemaSummary: jest.Mock;
 
     beforeEach(() => {
       mockFetchGraphSchemaSummary = jest.requireMock('../toolkit/graph-builder').fetchGraphSchemaSummary;
@@ -65,7 +65,7 @@ describe('API Endpoints - Graph Functionality', () => {
   });
 
   describe('POST /query-graph', () => {
-    let mockQueryGraph: vi.Mock;
+    let mockQueryGraph: jest.Mock;
     beforeEach(() => {
         mockQueryGraph = jest.requireMock('../toolkit/graph-builder').queryGraph;
         mockQueryGraph.mockReset();
@@ -88,7 +88,7 @@ describe('API Endpoints - Graph Functionality', () => {
 
   describe('GET /graph/overview', () => {
     const mockGraphData = { nodes: [{id: '1', name: 'Node1'}], links: [] };
-    let mockGetGraphOverview: vi.Mock;
+    let mockGetGraphOverview: jest.Mock;
 
 
     beforeEach(() => {
@@ -111,7 +111,7 @@ describe('API Endpoints - Graph Functionality', () => {
   describe('GET /graph/node/:id/neighbors', () => {
     const mockNodeId = 'node123';
     const mockNeighborData = { nodes: [{id: mockNodeId, name: 'Center'}], links: [] };
-    let mockGetNodeNeighbors: vi.Mock;
+    let mockGetNodeNeighbors: jest.Mock;
 
     beforeEach(() => {
       mockGetNodeNeighbors = jest.requireMock('../toolkit/graph-builder').getNodeWithNeighbors;

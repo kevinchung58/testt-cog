@@ -53,7 +53,7 @@ describe('Neo4j Service', () => {
     it('should execute a query successfully', async () => {
       const query = 'RETURN 1';
       const params = { p: 1 };
-      const mockResult = { records: [] } as QueryResult;
+      const mockResult = { records: [], summary: {} } as unknown as QueryResult;
       mockSessionRun.mockResolvedValue(mockResult);
 
       const result = await executeQuery(query, params);
@@ -66,7 +66,7 @@ describe('Neo4j Service', () => {
 
     it('should handle errors during query execution', async () => {
       const query = 'RETURN 1';
-      mockSessionRun.mockRejectedValue(new Neo4jError('Query failed', 'ERR_CODE'));
+      mockSessionRun.mockRejectedValue(new Error('Query failed'));
 
       await expect(executeQuery(query)).rejects.toThrow('Failed to execute query. Query failed');
       expect(mockSessionClose).toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('Neo4j Service', () => {
         { subject: 's1', relation: 'r1', object: 'o1' },
         { subject: 's2', relation: 'r2', object: 'o2' },
       ];
-      mockSessionRun.mockResolvedValue({ records: [] } as QueryResult); // Mock executeQuery's underlying run
+      mockSessionRun.mockResolvedValue({ records: [], summary: {} } as unknown as QueryResult); // Mock executeQuery's underlying run
 
       await saveTriples(triples);
 

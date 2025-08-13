@@ -35,9 +35,9 @@ try {
 import { saveUserPrompt, getSavedPrompts, deleteSavedPrompt } from '../toolkit/graph-builder';
 
 describe('API Endpoints - Saved Prompts (/prompts)', () => {
-  let mockSaveUserPrompt: vi.Mock;
-  let mockGetSavedPrompts: vi.Mock;
-  let mockDeleteSavedPrompt: vi.Mock;
+  let mockSaveUserPrompt: jest.Mock;
+  let mockGetSavedPrompts: jest.Mock;
+  let mockDeleteSavedPrompt: jest.Mock;
 
   beforeEach(() => {
     const graphBuilderMock = jest.requireMock('../toolkit/graph-builder');

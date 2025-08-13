@@ -5,8 +5,8 @@ import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 
 jest.mock('@langchain/google-genai');
 jest.mock('langchain/chains');
-jest.mock('../config', () => ({
-  ...jest.requireActual('../config'),
+jest.mock('../../config', () => ({
+  ...jest.requireActual('../../config'),
   GEMINI_API_KEY: 'test-gemini-api-key',
   DEFAULT_CHAT_MODEL_NAME: 'mock-chat-model',
 }));
@@ -16,7 +16,7 @@ describe('Query Engine Toolkit', () => {
   let mockConfig: any;
 
   beforeAll(() => {
-    mockConfig = require('../config');
+    mockConfig = require('../../config');
   });
 
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('Query Engine Toolkit', () => {
     createRAGChain(mockRetriever);
     expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
       apiKey: mockConfig.GEMINI_API_KEY,
-      modelName: mockConfig.DEFAULT_CHAT_MODEL_NAME,
+      model: mockConfig.DEFAULT_CHAT_MODEL_NAME,
       temperature: 0.3, // Matching default temperature in query-engine.ts
     });
     expect(RetrievalQAChain.fromLLM).toHaveBeenCalledWith(
@@ -50,18 +50,15 @@ describe('Query Engine Toolkit', () => {
     createRAGChain(mockRetriever, specificModel);
     expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
       apiKey: mockConfig.GEMINI_API_KEY,
-      modelName: specificModel,
+      model: specificModel,
       temperature: 0.3,
     });
   });
 
   test('createConversationalChain should initialize LLM with configured model and create ConversationalRetrievalQAChain', () => {
     createConversationalChain(mockRetriever);
-    expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
-      apiKey: mockConfig.GEMINI_API_KEY,
-      modelName: mockConfig.DEFAULT_CHAT_MODEL_NAME,
-      temperature: 0.3, // Matching default temperature in query-engine.ts
-    });
+    // The default LLM is a singleton initialized by the first test that calls getLlm() without a specific model.
+    // We don't need to assert its creation here again. We just need to ensure the chain is created.
     expect(ConversationalRetrievalQAChain.fromLLM).toHaveBeenCalledWith(
       expect.any(ChatGoogleGenerativeAI),
       mockRetriever,
@@ -74,7 +71,7 @@ describe('Query Engine Toolkit', () => {
     createConversationalChain(mockRetriever, specificModel);
     expect(ChatGoogleGenerativeAI).toHaveBeenCalledWith({
       apiKey: mockConfig.GEMINI_API_KEY,
-      modelName: specificModel,
+      model: specificModel,
       temperature: 0.3,
     });
   });

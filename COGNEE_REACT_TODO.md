@@ -163,3 +163,36 @@
 *   [x] ~~**LLM整合:** 後端LLM服務初始化已重構為使用 `config.ts` 中的可配置模型名稱。(/query 端點現在接受 `chatModelName`)~~ (已完成)
 *   [x] ~~**測試:** 後端單元測試和整合測試已更新以反映對LLM模型名稱的可配置性/參數化。~~ (已完成)
 *   [x] ~~**前端開發:** `ChatInterface.tsx` 已添加模型選擇下拉框，並將所選模型傳遞給後端 `/query` API。相關測試已更新。~~ (已完成)
+
+---
+**已知問題與技術債 (Known Issues & Technical Debt)**
+
+*   [ ] **後端測試套件損壞 (Broken Backend Test Suite):**
+    *   **問題 (Problem):** 後端測試套件 (`cognee-backend`) 目前完全無法運行。在嘗試修復過程中，發現 Jest 測試環境存在一個根本性的模組解析問題。
+    *   **現象 (Symptom):** Jest 無法在 `jest.mock()` 中正確解析相對路徑（例如 `../config`），導致 `Cannot find module` 或 `Module has no exported member` 等錯誤，即使路徑是正確的。這個問題在 `toolkit` 資料夾中的測試（特別是 `graph-builder.test.ts` 和 `data-processor.test.ts`）中尤為嚴重，並導致整合測試（integration tests）連鎖失敗。
+    *   **已嘗試的解決方案 (Attempted Solutions):**
+        *   重構原始碼以移除模組級別的副作用（延遲初始化）。
+        *   使用多種 `mock` 策略重寫測試檔案。
+        *   修改 `jest.config.js`（例如，添加 `moduleDirectories`）。
+    *   **結論 (Conclusion):** 這些嘗試均未解決最核心的模組解析問題。問題可能源於依賴衝突、`ts-jest` 的轉換問題或測試環境的更深層配置。在解決這個環境問題之前，無法有效地驗證後端功能的正確性。
+
+---
+
+**學習管理系統（LMS）技術調研 (Learning Management System (LMS) Research)**
+
+*   [ ] **(高優先級) 調研開源學習管理系統 (High Priority - Research Open-Source LMS):**
+    *   **目標 (Goal):** 尋找一個合適的開源 LMS 專案作為基礎，以便快速開發包含智慧教育功能的系統。
+    *   **環境依賴 (Environment Dependency):**
+        *   [ ] **修復調研工具 (Fix Research Tool):** 需要一個可正常運作的 `google_search` 工具來執行 GitHub 專案搜尋。**此為執行本計畫的阻塞性問題。**
+    *   **關鍵需求 (Key Requirements):**
+        *   **後端 (Backend):** 最好原生使用 Supabase，或後端架構清晰、易於替換為 Supabase。
+        *   **角色系統 (Role System):** 必須支持至少三種角色：管理員 (Administrator)、老師 (Teacher)、學生 (Student)，並有對應的登入和權限系統。
+        *   **前端 (Frontend):** 現代技術棧，優先考慮 React 或 Next.js。
+        *   **架構 (Architecture):** 模組化、易於擴展，以方便未來疊加智慧化功能。
+    *   **調研步驟 (Research Steps):**
+        *   [ ] **執行關鍵字搜尋 (Perform Keyword Searches):**
+            *   `"open source lms github supabase"`
+            *   `"nextjs supabase lms starter"`
+            *   `"open source learning management system with roles"`
+        *   [ ] **分析搜尋結果 (Analyze Search Results):** 針對每個有潛力的專案，分析其 README、原始碼、功能、技術棧和社群活躍度（Stars, Forks, 最近提交）。
+        *   [ ] **產出建議報告 (Produce Recommendation Report):** 總結 1-3 個最符合條件的專案，提供 GitHub 連結、優缺點分析，以及為何它適合本專案的說明。

@@ -8,9 +8,9 @@ This document outlines the strategic blueprint and actionable tasks for the Cogn
 
 *This phase is about eliminating critical risks and unblocking our primary business objective.*
 
-### 🚀 P0: Unblock Strategic Research
-- **Task:** Fix the `google_search` tool.
-- **Why:** This is the **single most important task**. It is a hard blocker for the high-priority business goal of researching and selecting an open-source LMS for integration. All other development is secondary until we can move forward on our strategic objective.
+### ✅ P0: Unblock Strategic Research (COMPLETE)
+- **Task:** Implement the `google_search` tool.
+- **Status:** **COMPLETE.** A new `GoogleSearchTool` has been created using the `@browserbasehq/sdk`. This unblocks the primary business goal of researching open-source LMSs.
 - **Owner:** Jules
 
 ### P1: Remediate Critical Test Environment Failure

@@ -1,16 +1,7 @@
 import { Tool } from "@langchain/core/tools";
 import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
-
-// Define the schema for a single search result using Zod
-const searchResultSchema = z.object({
-  title: z.string(),
-  link: z.string().url(),
-  snippet: z.string(),
-});
-
-// Define the schema for the array of search results
-const searchResultsSchema = z.array(searchResultSchema);
+import { extractSearchResultsFromHtml, SearchResult } from '../services/llmService';
 
 class GoogleSearchTool extends Tool {
   name = "google_search";
@@ -23,12 +14,15 @@ class GoogleSearchTool extends Tool {
   protected async _call(query: string): Promise<string> {
     console.log(`Performing Google search for: ${query}`);
 
-    // Stagehand requires API keys to be set in environment variables.
-    // This is a more secure and flexible approach than hardcoding them.
-    if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID || !process.env.OPENAI_API_KEY) {
-      const errorMessage = "Missing required environment variables for GoogleSearchTool (BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID, OPENAI_API_KEY).";
+    if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID) {
+      const errorMessage = "Missing required environment variables for GoogleSearchTool (BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID).";
       console.error(errorMessage);
       return errorMessage;
+    }
+     if (!process.env.GEMINI_API_KEY) {
+        const errorMessage = "Missing GEMINI_API_KEY for search result extraction.";
+        console.error(errorMessage);
+        return errorMessage;
     }
 
     let stagehand: Stagehand | null = null;
@@ -37,10 +31,6 @@ class GoogleSearchTool extends Tool {
         env: "BROWSERBASE",
         apiKey: process.env.BROWSERBASE_API_KEY,
         projectId: process.env.BROWSERBASE_PROJECT_ID,
-        modelName: "gpt-4o", // Using a capable model for extraction
-        modelClientOptions: {
-          apiKey: process.env.OPENAI_API_KEY,
-        },
       });
 
       await stagehand.init();
@@ -50,20 +40,15 @@ class GoogleSearchTool extends Tool {
       console.log(`Navigating to ${searchUrl}`);
       await page.goto(searchUrl);
 
-      // Use the extract method with a Zod schema to get structured data
-      const { results } = await page.extract({
-        instruction: "Extract the organic search results from the main content area. For each result, get the title, the full URL link, and the descriptive snippet. Ignore ads, 'People also ask' sections, and other non-essential parts.",
-        schema: z.object({
-          results: searchResultsSchema
-        }),
-      });
+      const htmlContent = await page.content();
+
+      const { results } = await extractSearchResultsFromHtml(htmlContent);
 
       if (!results || results.length === 0) {
         return "No results found.";
       }
 
-      // Format the structured results into a string
-      const formattedResults = results.slice(0, 5).map((result: z.infer<typeof searchResultSchema>, index: number) =>
+      const formattedResults = results.slice(0, 5).map((result: SearchResult, index: number) =>
         `${index + 1}. ${result.title}\n` +
         `   Link: ${result.link}\n` +
         `   Snippet: ${result.snippet}`

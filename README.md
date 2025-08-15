@@ -1,70 +1,99 @@
-# Cognee - Full Stack RAG Application
+# Next.js + Clerk RBAC Starter Template
 
-This project is a full-stack Retrieval Augmented Generation (RAG) application. It consists of a React frontend, a Node.js (TypeScript/Express) backend, and utilizes Neo4j and ChromaDB for data storage and retrieval.
+This project is a full-stack, production-ready starter template for building applications that require role-based access control (RBAC). It provides a clean, modular foundation for user authentication, role management, and protected routes/APIs.
 
-## Project Structure
+The goal of this template is to provide a reusable starting point for projects that need to differentiate user capabilities based on assigned roles (e.g., `admin`, `teacher`, `student`).
 
--   `/cognee-frontend`: Contains the React frontend application built with Vite.
--   `/cognee-backend`: Contains the Node.js backend API built with Express and TypeScript.
+## Core Technologies
 
-## Running the Application with Docker Compose
+-   **Frontend (`lms-frontend`)**:
+    -   [Next.js](https://nextjs.org/) (App Router)
+    -   [React](https://react.dev/)
+    -   [TypeScript](https://www.typescriptlang.org/)
+    -   [Tailwind CSS](https://tailwindcss.com/)
+    -   [shadcn-ui](https://ui.shadcn.com/) for a professional and extensible component library.
 
-This is the recommended way to run the entire application stack locally for development or testing.
+-   **Backend (`cognee-backend`)**:
+    -   [Node.js](https://nodejs.org/)
+    -   [Express](https://expressjs.com/)
+    -   [TypeScript](https://www.typescriptlang.org/)
 
-### Prerequisites
+-   **Authentication & User Management**:
+    -   [Clerk](https://clerk.com/) for user management, authentication, and role metadata.
 
--   Docker: [Install Docker](https://docs.docker.com/get-docker/)
--   Docker Compose: Usually included with Docker Desktop. If not, [install Docker Compose](https://docs.docker.com/compose/install/).
+## Features
 
-### Environment Setup
+-   **Full Authentication Flow**: Secure sign-in, sign-up, and user profile management handled by Clerk components.
+-   **Automated Role Assignment**: A backend webhook automatically assigns a default "student" role to every new user.
+-   **Role-Based Access Control (RBAC)**:
+    -   **Frontend**: Page access is controlled by role. The `/admin` route is protected and only accessible to users with the "admin" role.
+    -   **Backend**: API routes under `/api/users` are protected by middleware that verifies the user's JWT and checks for the "admin" role.
+-   **Admin User Management UI**: A functional dashboard at `/admin` where administrators can view all users and change their roles (`admin`, `teacher`, `student`).
+-   **Role-Based Routing**: A central routing component on the main `/dashboard` page automatically redirects logged-in users to their respective dashboards (`/admin`, `/teacher`, or `/student`).
+-   **Functional Role Examples**:
+    -   **Admin**: Can view all users and manage their roles.
+    -   **Teacher**: Can create new courses and view the courses they have created.
+    -   **Student**: Can view a catalog of all courses, enroll in them, and see their enrolled courses on their dashboard.
 
-1.  **Backend Configuration (`.env` for `cognee-backend`):**
-    *   Navigate to the `cognee-backend` directory.
-    *   Copy the example environment file: `cp .env.example .env`
-    *   Open the newly created `.env` file and **update the following variables**:
-        *   `OPENAI_API_KEY`: **Crucial for LLM functionalities.** Set this to your actual OpenAI API key.
-        *   `NEO4J_PASSWORD`: The password for the Neo4j database. The default is `yourStrongPassword`.
-            *   **IMPORTANT:** If you change `yourStrongPassword` here, you **must** also change it in the `NEO4J_AUTH` environment variable for the `neo4j` service in the main `docker-compose.yml` file (e.g., `NEO4J_AUTH=neo4j/yourNewPassword`).
-    *   Other variables like `NEO4J_URI`, `CHROMA_URL`, `CHROMA_COLLECTION_NAME`, and `PORT` are pre-configured in `.env.example` to work with the Docker Compose service names.
+## Getting Started
 
-2.  **Frontend Configuration (`.env` for `cognee-frontend` - Optional for Docker):**
-    *   The `VITE_API_BASE_URL` for the frontend is set at build time by Docker Compose to `http://backend:3001`.
-    *   If you were running the frontend locally *outside* of Docker (e.g., with `npm run dev` directly from `cognee-frontend`), you would create a `.env` file in `cognee-frontend` (by copying `cognee-frontend/.env.example` if it existed, or just creating it) and ensure `VITE_API_BASE_URL=http://localhost:3001` is set. For Docker Compose, this is handled by the build arguments.
+This project contains two main parts: the `cognee-backend` and the `lms-frontend`. Both need to be running simultaneously.
 
-### Build and Run
+### 1. Configure Backend
 
-1.  From the project root directory (where `docker-compose.yml` is located), run:
+1.  Navigate to the backend directory:
     ```bash
-    docker-compose up --build -d
+    cd cognee-backend
     ```
-    *   `--build`: This flag tells Docker Compose to build the images for the `backend` and `frontend` services if they don't exist locally or if their respective `Dockerfile` or build context has changed.
-    *   `-d`: This flag runs the containers in detached mode, meaning they run in the background.
-
-### Accessing Services
-
-Once the containers are up and running:
-
--   **Frontend Application:** Open your browser and go to `http://localhost:8080`
--   **Backend API:** Accessible at `http://localhost:3001` (This is what the frontend will connect to. You can also use tools like Postman or curl to test API endpoints directly.)
--   **Neo4j Browser:** Open your browser and go to `http://localhost:7474`
-    -   Connect using the URI `bolt://localhost:7687` (or the one specified in `cognee-backend/.env` if you changed it for local non-Docker Neo4j).
-    -   Login with username `neo4j` and the password you set (default `yourStrongPassword` as per `NEO4J_AUTH` in `docker-compose.yml` and `NEO4J_PASSWORD` in `cognee-backend/.env`).
--   **ChromaDB API:** Accessible at `http://localhost:8000` (Primarily for backend use or direct inspection if needed).
-
-### Stopping the Application
-
-1.  To stop all running services defined in the `docker-compose.yml`, navigate to the project root directory and run:
+2.  Install dependencies:
     ```bash
-    docker-compose down
+    npm install
     ```
-    This will stop and remove the containers.
+3.  Create an environment file by copying the example:
+    ```bash
+    cp .env.example .env
+    ```
+4.  Open the `.env` file and add your **Clerk Secret Key**. You can find this in your Clerk Dashboard under API Keys.
+    ```
+    CLERK_SECRET_KEY=sk_...
+    ```
+5.  Start the backend server:
+    ```bash
+    npm run dev
+    ```
+    The backend will be running on `http://localhost:3001` by default.
 
-### Data Persistence
+### 2. Configure Frontend
 
--   Neo4j data is persisted in a Docker volume named `neo4j_data`.
--   ChromaDB data is persisted in a Docker volume named `chroma_data`.
--   This means your graph data and vector embeddings will survive if you stop and restart the application using `docker-compose down` and `docker-compose up`.
--   To remove the data completely, you would need to explicitly remove the Docker volumes (e.g., `docker volume rm neo4j_data chroma_data`).
+1.  In a **new terminal window**, navigate to the frontend directory:
+    ```bash
+    cd cognee-backend/lms-frontend
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Create a local environment file:
+    ```bash
+    cp .env.example .env.local
+    ```
+4.  Open the `.env.local` file and add your **Clerk Publishable Key**, **Secret Key**, and **Webhook Secret**.
+    -   The Webhook Secret is crucial for the role-assignment automation. You can get this by creating a new webhook in your Clerk Dashboard pointed at `http://localhost:3001/api/webhooks/clerk`.
+5.  Start the frontend development server:
+    ```bash
+    npm run dev
+    ```
+    The frontend will be running on `http://localhost:3000`.
 
----
-*(Other sections of a typical README like "Project Setup for Local Development (without Docker)", "Features", "API Documentation", "Contributing", etc., can be added here later.)*
+### 3. Create an Admin User
+
+1.  Open `http://localhost:3000` in your browser and sign up for a new account. By default, you will be assigned the "student" role.
+2.  Go to your **Clerk Dashboard** -> Users.
+3.  Find the user you just created and click on it.
+4.  In the "Metadata" section, add the following to **Public Metadata**:
+    ```json
+    {
+      "role": "admin"
+    }
+    ```
+5.  Save the changes. Now, when you log in with this user, you will be redirected to the `/admin` dashboard and have access to the user management tools.

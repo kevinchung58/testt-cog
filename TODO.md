@@ -1,67 +1,62 @@
-# Project TODO & Architectural Overview
+# Next.js + Clerk RBAC Starter Template
 
-> [!WARNING]
-> **Critical Manual Step Required**
+> [!NOTE]
+> **Project Purpose**
 >
-> Due to an unresolved environment issue that prevents writing files into the `/lms-frontend` directory, the Clerk Webhook Secret could not be automatically set.
->
-> **Action Required:** You must manually add your Clerk Webhook Secret to the `lms-frontend/.env.local` file. It should look like this:
->
-> `CLERK_WEBHOOK_SECRET=whsec_...your...secret...here...`
->
-> This step is **required** for the automatic assignment of the "student" role to new users.
+> This project serves as a robust, production-ready starter template for applications requiring role-based access control (RBAC). It demonstrates a full-stack implementation of user authentication and role management using Next.js for the frontend, an Express backend, and Clerk for user management.
 
 ---
 
-This document outlines the current status, architecture, and next steps for the project, focusing on the new Learning Management System (LMS) foundation.
+## Core Features
 
-## Architecture
+This template provides a solid foundation with the following features implemented and verified:
 
-A new frontend application has been created in the `/lms-frontend` directory. This serves as the foundation for a modern, role-based Learning Management System and is intended to be the template for future frontend projects.
+- **Frontend (`lms-frontend`)**:
+  - Built with Next.js App Router, TypeScript, and Tailwind CSS.
+  - Integration with `shadcn-ui` for a professional and extensible component library.
+  - Secure sign-in, sign-up, and profile management pages via Clerk components.
+  - Role-based page protection and redirection.
+  - A functional dashboard for each role demonstrating its unique capabilities.
 
-- **Framework**: [Next.js](https://nextjs.org/) (with App Router)
-- **Authentication**: [Clerk](https://clerk.com/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Language**: TypeScript
+- **Backend (`cognee-backend`)**:
+  - Built with Express and TypeScript.
+  - Secure, role-protected APIs for user and content management.
+  - Middleware to protect API routes based on the user's role, verified via Clerk JWTs.
 
-This setup was chosen for its modern features, rapid development capabilities, and robust, built-in solutions for authentication and user management.
+- **Functional Role Examples**:
+    -   **Admin**: Can view all users and manage their roles from the `/admin` dashboard.
+    -   **Teacher**: Can create new courses and view their created courses from the `/teacher` dashboard.
+    -   **Student**: Can view a public course catalog, enroll in courses, and see their enrolled courses on the `/student` dashboard.
+    -   **Automated Role Assignment**: A Clerk webhook handler automatically assigns a default "student" role to new users upon creation.
 
-## How to Run
+## How to Get Started
 
-1.  Navigate to the new frontend directory: `cd lms-frontend`
-2.  Install dependencies: `npm install`
-3.  Set up your environment variables by creating a `.env.local` file. Copy the contents of `.env.example` (if it exists) or add the following keys from your Clerk dashboard:
-    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-    - `CLERK_SECRET_KEY`
-    - `CLERK_WEBHOOK_SECRET` (See critical manual step above)
-4.  Run the development server: `npm run dev`
-5.  The application will be available at `http://localhost:3000`.
+1.  **Configure Backend**:
+    - Navigate to `cognee-backend/`.
+    - Create a `.env` file from `.env.example`.
+    - Add your `CLERK_SECRET_KEY` from the Clerk Dashboard.
+    - Run `npm install` and then `npm run dev`.
+
+2.  **Configure Frontend**:
+    - Navigate to `cognee-backend/lms-frontend/`.
+    - Create a `.env.local` file.
+    - Add your `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `CLERK_WEBHOOK_SECRET` from the Clerk Dashboard.
+    - Run `npm install` and then `npm run dev`.
+
+3.  **Create an Admin or Teacher User**:
+    - Sign up for a new account. By default, you will be a "student".
+    - Go to your Clerk Dashboard -> Users, find your user, and in the "Public Metadata" section, set their role:
+      - For Admin: `{ "role": "admin" }`
+      - For Teacher: `{ "role": "teacher" }`
+    - Log in with the user to see their specific dashboard and capabilities.
 
 ---
 
-## Completed Tasks (LMS Foundation)
+## Future Work & Potential Extensions
 
-- [x] **Initialized New Next.js Project**: Created the `lms-frontend` application as a modern foundation.
-- [x] **Integrated Clerk for Authentication**: Installed and configured the Clerk SDK.
-- [x] **Implemented Basic Auth Flow**: Created sign-in, sign-up, and protected dashboard pages.
-- [x] **Defined Core User Roles**: Set up a system to assign a default "student" role to new users via webhooks.
-- [x] **Implemented Role-Based Access Control (RBAC)**: Created a protected `/admin` route and demonstrated conditional UI rendering based on user roles.
-- [x] **Created Placeholder Dashboards**: Built placeholder pages for Admin, Teacher, and Student roles to establish the app's structure.
+This template provides a functional demonstration of RBAC. It can be extended with additional features.
 
----
-
-## Next Steps & Future Work
-
-The foundation is now in place. Future development should focus on building out the specific features of the LMS.
-
-- **[ ] Flesh out Role Dashboards**: Add actual content and functionality to the Admin, Teacher, and Student dashboards.
-- **[ ] Implement Role Management UI**: Create an admin-only UI where administrators can view and change the roles of other users.
-- **[ ] Course Creation & Management**:
-    -   Allow Teachers to create and manage courses.
-    -   Allow Students to enroll in courses.
-- **[ ] Lesson & Content Modules**:
-    -   Teachers should be able to add lessons (text, video, quizzes) to courses.
-    -   Students should be able to view lesson content.
-- **[ ] Connect to Backend**: Integrate the `lms-frontend` with the `cognee-backend` by creating API clients to fetch and mutate data.
-- **[ ] Refine Permissions**: Add more granular permissions beyond the three basic roles if needed.
-- **[ ] Write Frontend Tests**: Add unit and integration tests for the new frontend application using Jest and React Testing Library/Playwright.
+- **[ ] Add More Granular Permissions**: Extend the role system to include permissions (e.g., `course:edit`, `course:delete`) for more fine-grained control.
+- **[ ] Build out Lesson Content**: Allow teachers to add rich content (video, text, quizzes) to the lessons.
+- **[ ] Track Student Progress**: Implement a system to track which lessons a student has completed.
+- **[ ] Write Frontend Tests**: Add a testing framework like Jest and React Testing Library/Playwright to the `lms-frontend` to ensure long-term stability.

@@ -270,3 +270,62 @@ export async function* synthesizeAnswerWithContext(question: string, contextItem
     yield 'An error occurred while trying to synthesize an answer with the language model.';
   }
 }
+
+const SEARCH_RESULT_EXTRACTION_PROMPT_TEMPLATE = `From the provided HTML content of a search engine results page, extract the organic search results.
+Return the result as a single valid JSON object with a single key: "results".
+The "results" key should have a value of an array of objects, where each object has "title", "link", and "snippet".
+Ignore ads, "People also ask" sections, and other non-essential parts. Focus only on the main organic search results.
+
+HTML Content:
+'{html_content}'
+
+JSON Output:
+`;
+
+export interface SearchResult {
+  title: string;
+  link: string;
+  snippet: string;
+}
+
+export async function extractSearchResultsFromHtml(htmlContent: string): Promise<{ results: SearchResult[] }> {
+  if (!langchainGeminiChatModel) {
+    console.warn('Langchain Gemini Chat client not initialized. Cannot extract search results.');
+    return { results: [] };
+  }
+
+  const prompt = ChatPromptTemplate.fromMessages([
+    new SystemMessage("You are an expert in web page content extraction. Your response must be only a valid JSON object with a 'results' key. The value should be an array of objects, each with 'title', 'link', and 'snippet' keys. Do not include markdown code blocks or any other explanatory text."),
+    new HumanMessage(SEARCH_RESULT_EXTRACTION_PROMPT_TEMPLATE),
+  ]);
+
+  const chain = prompt.pipe(langchainGeminiChatModel).pipe(new StringOutputParser());
+
+  try {
+    console.log(`Sending request to Gemini for search result extraction from HTML content (length: ${htmlContent.length}).`);
+    const response = await chain.invoke({
+      html_content: htmlContent,
+    });
+
+    let jsonString = response.trim();
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.substring(7).trim();
+      if (jsonString.endsWith('```')) {
+        jsonString = jsonString.substring(0, jsonString.length - 3).trim();
+      }
+    }
+
+    const parsed = JSON.parse(jsonString);
+    // Basic validation
+    if (parsed && Array.isArray(parsed.results)) {
+      console.log(`Extracted ${parsed.results.length} search results.`);
+      return parsed;
+    } else {
+      console.error('Gemini response for search result extraction was not in the expected format:', parsed);
+      return { results: [] };
+    }
+  } catch (error: any) {
+    console.error('Error calling Gemini API or parsing response for search result extraction:', error.message);
+    return { results: [] };
+  }
+}

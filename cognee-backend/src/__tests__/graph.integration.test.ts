@@ -25,15 +25,7 @@ jest.mock('../toolkit/graph-builder', () => {
 // Mock other toolkits if graph endpoints interact with them indirectly
 // For now, assuming graph endpoints primarily use graph-builder
 
-let app: express.Application;
-try {
-  const serverModule = require('../server');
-  app = serverModule.app;
-  if (!app) throw new Error("App not exported from server.ts");
-} catch (e) {
-  console.error("Failed to import app from server.ts for testing in graph.integration.test.ts", e);
-  process.exit(1);
-}
+import app from '../server';
 
 import { getGraphOverview, getNodeWithNeighbors, fetchGraphSchemaSummary, queryGraph } from '../toolkit/graph-builder';
 

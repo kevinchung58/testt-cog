@@ -12,23 +12,24 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^6.0.3",
+    "@types/uuid": "^9.0.8",
     "express": "^5.1.0",
     "jest": "^29.7.0",
     "nodemon": "^3.1.10",
     "supertest": "^7.1.1",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
-    "@types/uuid": "^9.0.8"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
-    "uuid": "^9.0.1",
     "@browserbasehq/stagehand": "^1.14.0",
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@langchain/community": "^0.3.46",
     "@langchain/google-genai": "^0.2.12",
     "@types/multer": "^1.4.13",
@@ -37,8 +38,10 @@
     "langchain": "^0.3.28",
     "mammoth": "^1.9.1",
     "multer": "^2.0.1",
+    "nanoid": "^3.3.11",
     "neo4j-driver": "^5.28.1",
     "pdf-parse": "^1.1.1",
+    "uuid": "^9.0.1",
     "zod": "^3.23.8"
   }
 }

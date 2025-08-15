@@ -34,15 +34,7 @@ jest.mock('../toolkit/data-processor', () => ({
 }));
 
 
-let app: express.Application;
-try {
-  const serverModule = require('../server');
-  app = serverModule.app;
-  if (!app) throw new Error("App not exported from server.ts");
-} catch (e) {
-  console.error("Failed to import app from server.ts for testing in ingest.integration.test.ts", e);
-  process.exit(1);
-}
+import app from '../server';
 
 import { processFileToDocuments } from '../toolkit/data-processor';
 import { addDocuments as addDocumentsToVectorStore } from '../toolkit/vector-store';

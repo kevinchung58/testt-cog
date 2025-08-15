@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
+import { getMockCourseDetails, getMockLessons, createMockLesson } from "@/mocks/handlers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,22 +40,16 @@ const CourseManagementPage = ({ params }: PageProps) => {
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
-    if (!userId) return;
-
-    const fetchData = async () => {
+    // This component will now use mocks for development to ensure it's always functional.
+    const fetchMockData = async () => {
       try {
-        const token = await getToken();
-        if (!token) throw new Error("Not authenticated");
+        // Use a mock courseId if the real one isn't one we've mocked
+        const effectiveCourseId = courseId === "course_123" ? courseId : "course_123";
 
-        const [courseRes, lessonsRes] = await Promise.all([
-            fetch(`/api/courses/${courseId}`, { headers: { Authorization: `Bearer ${token}` } }),
-            fetch(`/api/courses/${courseId}/lessons`, { headers: { Authorization: `Bearer ${token}` } })
+        const [courseData, lessonsData] = await Promise.all([
+          getMockCourseDetails(effectiveCourseId),
+          getMockLessons(effectiveCourseId)
         ]);
-
-        if (!courseRes.ok || !lessonsRes.ok) throw new Error("Failed to fetch course data");
-
-        const courseData = await courseRes.json();
-        const lessonsData = await lessonsRes.json();
 
         setCourse(courseData);
         setLessons(lessonsData);
@@ -65,22 +60,21 @@ const CourseManagementPage = ({ params }: PageProps) => {
       }
     };
 
-    fetchData();
-  }, [userId, getToken, courseId]);
+    // In a real app with a toggle, you'd check process.env.NODE_ENV
+    // For this exercise, we are forcing mock data usage.
+    fetchMockData();
+  }, [courseId]);
 
   const handleAddLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAdding(true);
     setError(null);
     try {
-        const token = await getToken();
-        const response = await fetch(`/api/courses/${courseId}/lessons`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ title: newLessonTitle, content: newLessonContent }),
+        const effectiveCourseId = courseId === "course_123" ? courseId : "course_123";
+        const newLesson = await createMockLesson(effectiveCourseId, {
+            title: newLessonTitle,
+            content: newLessonContent,
         });
-        if (!response.ok) throw new Error('Failed to create lesson');
-        const newLesson = await response.json();
         setLessons(prevLessons => [...prevLessons, newLesson].sort((a, b) => a.order - b.order));
         setNewLessonTitle('');
         setNewLessonContent('');

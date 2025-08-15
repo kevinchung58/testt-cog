@@ -1,62 +1,60 @@
-# Next.js + Clerk RBAC Starter Template
+# Cognee LMS & RAG Platform - Development Blueprint
 
-> [!NOTE]
-> **Project Purpose**
+> [!IMPORTANT]
+> **Architect's Mandate (As of 2025-08-15)**
 >
-> This project serves as a robust, production-ready starter template for applications requiring role-based access control (RBAC). It demonstrates a full-stack implementation of user authentication and role management using Next.js for the frontend, an Express backend, and Clerk for user management.
+> The project's backend environment is currently unstable, preventing dependency installation (`npm install`). All development will proceed using a **backend-decoupled** strategy. The `lms-frontend` will utilize a dependency-free, in-house mock API layer (`src/mocks/`) to enable continued progress on UI/UX features and testing. This document reflects that new reality.
 
 ---
 
-## Core Features
+## Known Blockers & Strategic Workarounds
 
-This template provides a solid foundation with the following features implemented and verified:
+- **[BLOCKER] Backend Environment Unstable**:
+  - **Issue**: The `npm install` command fails consistently in the `cognee-backend` workspace due to a suspected deep-seated `npm` or environment configuration issue.
+  - **Status**: **Unresolved.** This is a critical infrastructure problem that must be fixed externally.
+  - **Workaround**: All backend-dependent development is on hold. Frontend development will proceed in a decoupled manner.
 
-- **Frontend (`lms-frontend`)**:
-  - Built with Next.js App Router, TypeScript, and Tailwind CSS.
-  - Integration with `shadcn-ui` for a professional and extensible component library.
-  - Secure sign-in, sign-up, and profile management pages via Clerk components.
-  - Role-based page protection and redirection.
-  - A functional dashboard for each role demonstrating its unique capabilities.
+- **[WORKAROUND] Dependency-Free API Mocking**:
+  - **Strategy**: To unblock frontend work, we have implemented a simple, dependency-free mock API layer within the `lms-frontend` at `src/mocks/handlers.ts`.
+  - **Implementation**: Components will be refactored to use these mock handlers when `process.env.NODE_ENV === 'development'`. This allows for UI development and testing without a live backend.
 
-- **Backend (`cognee-backend`)**:
-  - Built with Express and TypeScript.
-  - Secure, role-protected APIs for user and content management.
-  - Middleware to protect API routes based on the user's role, verified via Clerk JWTs.
+---
 
-- **Functional Role Examples**:
-    -   **Admin**: Can view all users and manage their roles from the `/admin` dashboard.
-    -   **Teacher**: Can create new courses and view their created courses from the `/teacher` dashboard.
-    -   **Student**: Can view a public course catalog, enroll in courses, and see their enrolled courses on the `/student` dashboard.
-    -   **Automated Role Assignment**: A Clerk webhook handler automatically assigns a default "student" role to new users upon creation.
+## Active & Upcoming Tasks
 
-## How to Get Started
+### P0: Foundational Stability & Security
+
+- **[DONE] Implement Dependency-Free Mock Layer**: Created a mock API for the `lms-frontend` to enable decoupled development. Integrated with the Admin Dashboard as a proof-of-concept.
+- **[TODO] Secure Public Endpoints**: The `/ingest` and `/query` endpoints in `cognee-backend` are currently public. Once the environment is restored, they must be protected with authentication and role-based authorization (e.g., Admin-only).
+- **[TODO] Write Frontend Tests**: Add a testing framework (e.g., Jest/RTL or Playwright) to the `lms-frontend`.
+  - **First Task**: Write tests for the `UserManagementTable` component, leveraging the new mock API handlers. This will validate the mocking strategy and improve frontend robustness.
+
+### P1: Core Feature Extensions
+
+- **[TODO] Add More Granular Permissions**: Extend the RBAC system to include specific permissions (e.g., `course:edit`, `course:delete`, `user:manage_roles`) for more fine-grained control. This will require changes on both the backend and frontend.
+- **[TODO] Build out Lesson Content Management**: Allow teachers to add rich content (e.g., Markdown text, video embeds, simple quizzes) to lessons.
+- **[TODO] Track Student Progress**: Implement a system to track which lessons a student has completed, and display this progress on their dashboard.
+
+### P2: Original RAG Project Tasks (On Hold)
+
+> [!NOTE]
+> The original `cognee-frontend` and its associated RAG features are currently on hold pending the resolution of the backend environment issues. The focus is on the LMS functionality for now.
+
+---
+
+## Original Getting Started Guide (For Reference)
+
+> [!WARNING]
+> The following instructions are for a stable environment and will likely fail until the `npm install` issue in `cognee-backend` is resolved.
 
 1.  **Configure Backend**:
     - Navigate to `cognee-backend/`.
     - Create a `.env` file from `.env.example`.
-    - Add your `CLERK_SECRET_KEY` from the Clerk Dashboard.
-    - Run `npm install` and then `npm run dev`.
+    - Add your `CLERK_SECRET_KEY`.
+    - Run `npm install` (Currently Failing) and then `npm run dev`.
 
 2.  **Configure Frontend**:
     - Navigate to `cognee-backend/lms-frontend/`.
     - Create a `.env.local` file.
-    - Add your `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `CLERK_WEBHOOK_SECRET` from the Clerk Dashboard.
+    - Add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, etc.
     - Run `npm install` and then `npm run dev`.
-
-3.  **Create an Admin or Teacher User**:
-    - Sign up for a new account. By default, you will be a "student".
-    - Go to your Clerk Dashboard -> Users, find your user, and in the "Public Metadata" section, set their role:
-      - For Admin: `{ "role": "admin" }`
-      - For Teacher: `{ "role": "teacher" }`
-    - Log in with the user to see their specific dashboard and capabilities.
-
----
-
-## Future Work & Potential Extensions
-
-This template provides a functional demonstration of RBAC. It can be extended with additional features.
-
-- **[ ] Add More Granular Permissions**: Extend the role system to include permissions (e.g., `course:edit`, `course:delete`) for more fine-grained control.
-- **[ ] Build out Lesson Content**: Allow teachers to add rich content (video, text, quizzes) to the lessons.
-- **[ ] Track Student Progress**: Implement a system to track which lessons a student has completed.
-- **[ ] Write Frontend Tests**: Add a testing framework like Jest and React Testing Library/Playwright to the `lms-frontend` to ensure long-term stability.

@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
+import { getMockUsers, updateMockUserRole } from "@/mocks/handlers";
 import {
   Table,
   TableHeader,
@@ -38,6 +39,20 @@ const UserManagementTable = () => {
 
   useEffect(() => {
     const fetchUsers = async () => {
+      // Use mock data in development to avoid dependency on the broken backend
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const mockData = await getMockUsers();
+          setUsers(mockData);
+        } catch (err: any) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Original production logic
       try {
         const token = await getToken();
         if (!token) {
@@ -67,6 +82,25 @@ const UserManagementTable = () => {
   }, [getToken]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
+    // Use mock data in development
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        await updateMockUserRole(userId, newRole);
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === userId
+              ? { ...user, publicMetadata: { ...user.publicMetadata, role: newRole as any } }
+              : user
+          )
+        );
+        alert("Mock role updated successfully!");
+      } catch (err: any) {
+        alert(`Error updating mock role: ${err.message}`);
+      }
+      return;
+    }
+
+    // Original production logic
     try {
       const token = await getToken();
       const response = await fetch(`/api/users/${userId}/role`, {

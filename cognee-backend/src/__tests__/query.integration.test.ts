@@ -40,15 +40,7 @@ jest.mock('../toolkit/data-processor', () => ({
 }));
 
 
-let app: express.Application;
-try {
-  const serverModule = require('../server');
-  app = serverModule.app;
-  if (!app) throw new Error("App not exported from server.ts");
-} catch (e) {
-  console.error("Failed to import app from server.ts for testing in query.integration.test.ts", e);
-  process.exit(1);
-}
+import app from '../server';
 
 import { createRAGChain, createConversationalChain } from '../toolkit/query-engine';
 import { createRetriever as createVectorStoreRetriever } from '../toolkit/vector-store';
@@ -79,8 +71,8 @@ describe('API Endpoints - POST /query', () => {
     (createVectorStoreRetriever as jest.Mock).mockResolvedValue(mockRetriever);
 
     const mockStream = async function* (data: any) {
-      yield { token: 'Mocked stream response for ' + (data.question || data.query) }; // data.query for RAGChain
-      yield { token: ' part 2.'};
+      yield 'Mocked stream response for ' + (data.question || data.query); // data.query for RAGChain
+      yield ' part 2.';
     };
 
     const mockStreamConversational = async function* (data: any) {

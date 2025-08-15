@@ -1,4 +1,3 @@
-import * as graphBuilder from '../graph-builder';
 import { Document } from '@langchain/core/documents';
 import { AIMessage } from '@langchain/core/messages';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
@@ -14,6 +13,7 @@ jest.mock('../../config', () => ({
 }));
 
 describe('Graph Builder Toolkit', () => {
+  let graphBuilder: any;
   let mockLlm: Partial<ChatGoogleGenerativeAI>;
   let mockConfig: any;
   let mockDriver: any;
@@ -31,10 +31,12 @@ describe('Graph Builder Toolkit', () => {
   });
 
   beforeEach(() => {
-    jest.clearAllMocks(); // Ensure a clean slate for all mocks
+    jest.resetModules();
+    jest.clearAllMocks();
 
-    (ChatGoogleGenerativeAI as unknown as jest.Mock).mockClear();
-    (neo4j.driver as unknown as jest.Mock).mockClear();
+    graphBuilder = require('../graph-builder');
+    const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+    const neo4j = require('neo4j-driver');
 
     mockLlm = {
       pipe: jest.fn().mockReturnThis(),

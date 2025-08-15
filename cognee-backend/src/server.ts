@@ -112,12 +112,24 @@ app.post('/ingest', upload.single('file'), async (req: Request<{}, {}, {}, Inges
   }
 });
 
+// Interface for the /query endpoint body
 interface QueryBody {
   question: string;
   sessionId?: string;
   collectionName?: string;
   chat_history?: Array<{ type: 'human' | 'ai'; content: string }>;
-// ...existing code...
+  use_knowledge_graph?: boolean;
+  chatModelName?: string;
+}
+
+app.post('/query', async (req: Request<{}, {}, QueryBody>, res) => {
+  let {
+    question,
+    sessionId,
+    collectionName = DEFAULT_CHROMA_COLLECTION_NAME,
+    chat_history,
+    use_knowledge_graph = false,
+    chatModelName
   } = req.body;
 
   if (!question || typeof question !== 'string') {
@@ -128,11 +140,7 @@ interface QueryBody {
   if (!sessionId) {
     sessionId = uuidv4();
     console.log(`No sessionId provided, generated new one: ${sessionId}`);
-    // Note: Client needs to receive this sessionId to continue the conversation session.
-    // We can send it as a custom header or as part of the first SSE event.
-    // For simplicity, let's try to send it in a custom header. This is non-standard for SSE.
-    // A better way might be a dedicated SSE event type: 'session_id'.
-    res.setHeader('X-Session-Id', sessionId); // Custom header to send back the session ID
+    res.setHeader('X-Session-Id', sessionId);
   }
 
   console.log(`Received query for sessionId ${sessionId}: "${question}", Collection: ${collectionName}, Use KG: ${use_knowledge_graph}`);
@@ -144,55 +152,45 @@ interface QueryBody {
     await saveChatMessage(sessionId, userMessageToSave);
   } catch (dbError) {
     console.error(`Failed to save user message for session ${sessionId}:`, dbError);
-    // Decide if this should be a fatal error for the query. For now, log and continue.
   }
-
-  let aiResponseToSave: { id: string; type: 'ai'; text: string } | null = null;
 
   try {
     const retriever = await createVectorStoreRetriever(collectionName);
-    let sourceDocuments: any[] = []; // To store source documents from the chain
+    let sourceDocuments: any[] = [];
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders(); // Send headers immediately
+    res.flushHeaders();
 
     let finalAnswer = "";
-
-    // Knowledge Graph Query (Optional)
     let knowledgeGraphContext = "";
+
     if (use_knowledge_graph) {
         console.log(`Querying knowledge graph with model: ${chatModelName || 'default'}...`);
         try {
-            // Pass chatModelName to queryKnowledgeGraph
             const graphResults = await queryKnowledgeGraph(question, undefined, chatModelName);
             if (graphResults && graphResults.length > 0) {
                 knowledgeGraphContext = "Knowledge Graph Results:\n" + graphResults.map(r => JSON.stringify(r)).join("\n");
                 console.log("Knowledge graph context retrieved:", knowledgeGraphContext);
-                // Send KG context as a separate event or prepend to LLM context for main RAG chain
-                 res.write(`data: ${JSON.stringify({ type: 'kg_context', content: knowledgeGraphContext })}\n\n`);
+                res.write(`data: ${JSON.stringify({ type: 'kg_context', content: knowledgeGraphContext })}\n\n`);
             }
         } catch (kgError: any) {
             console.error("Error querying knowledge graph:", kgError.message);
-             res.write(`data: ${JSON.stringify({ type: 'error', content: 'Error querying knowledge graph: ' + kgError.message })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'error', content: 'Error querying knowledge graph: ' + kgError.message })}\n\n`);
         }
     }
 
-    // Prepare question for RAG chain, potentially including KG context
     const questionForRAG = knowledgeGraphContext
         ? `${question}\n\nConsider also the following information from the knowledge graph:\n${knowledgeGraphContext}`
         : question;
 
     if (chat_history && chat_history.length > 0) {
       console.log(`Using Conversational RAG chain with model: ${chatModelName || 'default'}.`);
-      // Pass chatModelName to createConversationalChain
       const conversationalChain = createConversationalChain(retriever, chatModelName);
       const langchainMessages: BaseMessage[] = chat_history.map(msg =>
         msg.type === 'human' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
       );
-
-      // Streaming for ConversationalRetrievalQAChain
       const stream = await conversationalChain.stream({ question: questionForRAG, chat_history: langchainMessages });
       for await (const chunk of stream) {
         if (chunk.answer) {
@@ -205,72 +203,43 @@ interface QueryBody {
       }
     } else {
       console.log(`Using basic RAG chain with model: ${chatModelName || 'default'}.`);
-      // Pass chatModelName to createRAGChain
       const ragChain = createRAGChain(retriever, chatModelName);
-      // Streaming for RetrievalQAChain (if it yields string tokens directly)
-      // Or it might yield objects like { answer: "...", sourceDocuments: [...] } if underlying LLM is not a streaming type
-      // Let's assume it streams final answer tokens
-      const stream = await ragChain.stream({ query: questionForRAG }); // 'query' is the default input key
+      const stream = await ragChain.stream({ query: questionForRAG });
       for await (const chunk of stream) {
-         // Standard RetrievalQAChain.stream() yields objects like { answer: string, sourceDocuments: Document[] }
-         // or just string tokens if the LLM is streaming and the chain is set up for it.
-         // For RetrievalQAChain, the 'answer' field is not standard in the stream chunks.
-         // It usually has 'result' for the final answer after .call or 'text' from llm.
-         // Let's assume the stream directly gives string tokens for the answer.
-         if (typeof chunk === 'string') { // Simpler case: LLM token stream
+         if (typeof chunk === 'string') {
             res.write(`data: ${JSON.stringify({ token: chunk })}\n\n`);
             finalAnswer += chunk;
-         } else if (chunk.sourceDocuments) { // If source documents come through the stream
+         } else if (chunk.sourceDocuments) {
             sourceDocuments = chunk.sourceDocuments;
-             res.write(`data: ${JSON.stringify({ sourceDocuments: chunk.sourceDocuments.map((d: any) => ({ pageContent: d.pageContent, metadata: d.metadata })) })}\n\n`);
-         } else if (chunk.text) { // Some chains might output 'text'
-             res.write(`data: ${JSON.stringify({ token: chunk.text })}\n\n`);
-             finalAnswer += chunk.text;
-         } else if (chunk.result) { // Final result from some chains
-             res.write(`data: ${JSON.stringify({ token: chunk.result })}\n\n`);
-             finalAnswer += chunk.result;
+            res.write(`data: ${JSON.stringify({ sourceDocuments: chunk.sourceDocuments.map((d: any) => ({ pageContent: d.pageContent, metadata: d.metadata })) })}\n\n`);
+         } else if (chunk.text) {
+            res.write(`data: ${JSON.stringify({ token: chunk.text })}\n\n`);
+            finalAnswer += chunk.text;
+         } else if (chunk.result) {
+            res.write(`data: ${JSON.stringify({ token: chunk.result })}\n\n`);
+            finalAnswer += chunk.result;
          }
-         // Fallback for unexpected chunk structure
-         // else { console.log("Unexpected stream chunk:", chunk); }
       }
-      // After stream, if source documents weren't part of stream, get them from a final call or if chain stores them.
-      // RetrievalQAChain by default returns source documents in the final output of .call().
-      // If stream() doesn't include them reliably, we might need a .call() if only final answer is needed.
-      // For now, assuming source documents might appear in stream or need a different handling.
-      // The plan was to return result.text and result.sourceDocuments.
-      // Let's fetch source documents explicitly if not found in stream.
       if(sourceDocuments.length === 0) {
         const finalResult = await ragChain.call({ query: questionForRAG });
-        finalAnswer = finalResult.text; // Overwrite if stream was partial
+        finalAnswer = finalResult.text;
         sourceDocuments = finalResult.sourceDocuments || [];
-        // If we got the final answer here, and we were streaming before, clear the stream write for final answer.
-        // This logic gets complex. For simplicity, if streaming tokens, source docs are sent after stream.
-        // If not streaming tokens, send all at once.
-        // The current SSE setup sends tokens. So, source documents will be sent after the loop.
       }
     }
 
-    // Send final event with all source documents if they haven't been sent per chunk
-    // And ensure final answer is captured if it wasn't fully streamed.
-    // This part needs to be careful not to duplicate data if stream already sent it.
-    // For now, just send a "completed" event. Source docs handling can be refined.
-    // If sourceDocuments were collected during the stream (e.g. from ConversationalRetrievalQAChain)
-    // we can send them here.
     if (sourceDocuments.length > 0) {
         res.write(`data: ${JSON.stringify({ type: 'source_documents', content: sourceDocuments.map((d: any) => ({ pageContent: d.pageContent, metadata: d.metadata })) })}\n\n`);
     }
-     res.write(`data: ${JSON.stringify({ type: 'final_answer', content: finalAnswer })}\n\n`);
-     res.write(`data: ${JSON.stringify({ type: 'completed', message: 'Query processing completed.' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'final_answer', content: finalAnswer })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'completed', message: 'Query processing completed.' })}\n\n`);
     res.end();
 
-    // After stream completion, save the full AI response
     if (finalAnswer && sessionId) {
-      aiResponseToSave = { id: `ai-${Date.now()}-${Math.random().toString(36).substring(2,7)}`, type: 'ai' as const, text: finalAnswer };
+      const aiResponseToSave = { id: `ai-${Date.now()}-${Math.random().toString(36).substring(2,7)}`, type: 'ai' as const, text: finalAnswer };
       try {
         await saveChatMessage(sessionId, aiResponseToSave);
       } catch (dbError) {
         console.error(`Failed to save AI message for session ${sessionId}:`, dbError);
-        // Log and continue, as the user already received the response.
       }
     }
 
@@ -289,6 +258,7 @@ interface QueryBody {
     }
   }
 });
+
 
 // Endpoint to retrieve chat history for a session
 app.get('/chat/history/:sessionId', async (req, res) => {
@@ -315,13 +285,11 @@ app.delete('/chat/history/:sessionId', async (req, res) => {
     res.status(204).send(); // No content on successful deletion
   } catch (error: any) {
     console.error(`Error deleting history for session ${sessionId}:`, error.message, error.stack);
-    // Check if error indicates not found, potentially return 404
-    if (error.message.toLowerCase().includes('not found')) { // Basic check
+    if (error.message.toLowerCase().includes('not found')) {
         return res.status(404).json({ message: `Chat history for session ID ${sessionId} not found.`});
     }
     res.status(500).json({ message: 'Failed to delete chat history.', error: error.message });
   }
-});
 });
 
 // Refactor graph utility endpoints

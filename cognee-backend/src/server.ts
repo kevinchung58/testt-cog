@@ -620,4 +620,131 @@ courseRouter.post('/courses/:courseId/enroll', async (req, res) => {
 
 app.use('/api', courseRouter);
 
+// Middleware to check if the requester is the course owner or an admin
+const isCourseOwner = async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+  try {
+    const { sessionClaims } = req.auth;
+    const { courseId } = req.params;
+
+    if (sessionClaims?.metadata.role === 'admin') {
+      return next();
+    }
+
+    const result = await executeCypherQuery(
+      `MATCH (c:Course {courseId: $courseId}) RETURN c.authorId AS authorId`,
+      { courseId }
+    );
+
+    if (result.records.length === 0) {
+      return res.status(404).json({ message: 'Course not found.' });
+    }
+
+    const authorId = result.records[0].get('authorId');
+    if (authorId === sessionClaims?.sub) {
+      return next();
+    }
+
+    return res.status(403).json({ message: 'Forbidden: You do not have permission to modify this course.' });
+  } catch (error: any) {
+    console.error('Error in isCourseOwner middleware:', error.message);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+
+// Middleware to check if the requester is enrolled, the course owner, or an admin
+const isEnrolledOrOwner = async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+    try {
+        const { sessionClaims } = req.auth;
+        const { courseId } = req.params;
+        const userId = sessionClaims?.sub;
+
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized.' });
+        }
+
+        if (sessionClaims?.metadata.role === 'admin') {
+            return next();
+        }
+
+        const result = await executeCypherQuery(
+            `MATCH (c:Course {courseId: $courseId})
+             OPTIONAL MATCH (u:User {id: $userId})-[:ENROLLED_IN]->(c)
+             RETURN c.authorId AS authorId, u IS NOT NULL AS isEnrolled`,
+            { courseId, userId }
+        );
+
+        if (result.records.length === 0) {
+            return res.status(404).json({ message: 'Course not found.' });
+        }
+
+        const record = result.records[0];
+        const authorId = record.get('authorId');
+        const isEnrolled = record.get('isEnrolled');
+
+        if (authorId === userId || isEnrolled) {
+            return next();
+        }
+
+        return res.status(403).json({ message: 'Forbidden: You do not have permission to view these lessons.' });
+    } catch (error: any) {
+        console.error('Error in isEnrolledOrOwner middleware:', error.message);
+        return res.status(500).json({ message: 'Internal server error.' });
+    }
+};
+
+// Get all lessons for a specific course
+courseRouter.get('/courses/:courseId/lessons', isEnrolledOrOwner, async (req, res) => {
+    const { courseId } = req.params;
+    try {
+        const result = await executeCypherQuery(
+            `MATCH (:Course {courseId: $courseId})-[:HAS_LESSON]->(l:Lesson)
+             RETURN l ORDER BY l.order ASC`,
+            { courseId }
+        );
+        const lessons = result.records.map(record => record.get('l').properties);
+        res.json(lessons);
+    } catch (error: any) {
+        console.error(`Error fetching lessons for course ${courseId}:`, error.message);
+        res.status(500).json({ message: 'Failed to fetch lessons.' });
+    }
+});
+
+// Create a new lesson in a course
+courseRouter.post('/courses/:courseId/lessons', isCourseOwner, async (req, res) => {
+    const { courseId } = req.params;
+    const { title, content } = req.body;
+
+    if (!title) {
+        return res.status(400).json({ message: 'Lesson title is required.' });
+    }
+
+    const lessonId = uuidv4();
+    // A simple order calculation for now, just counts existing lessons.
+    const orderResult = await executeCypherQuery(
+        `MATCH (c:Course {courseId: $courseId})-[:HAS_LESSON]->(l:Lesson) RETURN count(l) as lessonCount`,
+        { courseId }
+    );
+    const order = orderResult.records[0].get('lessonCount').low || 0;
+
+    try {
+        await executeCypherQuery(
+            `MATCH (c:Course {courseId: $courseId})
+             CREATE (l:Lesson {
+                 lessonId: $lessonId,
+                 title: $title,
+                 content: $content,
+                 order: $order,
+                 createdAt: datetime()
+             })
+             CREATE (c)-[:HAS_LESSON]->(l)`,
+            { courseId, lessonId, title, content, order }
+        );
+        res.status(201).json({ lessonId, title, content, order });
+    } catch (error: any) {
+        console.error(`Error creating lesson for course ${courseId}:`, error.message);
+        res.status(500).json({ message: 'Failed to create lesson.' });
+    }
+});
+
 export default app;

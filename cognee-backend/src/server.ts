@@ -21,7 +21,8 @@ import {
   deleteChatHistory, // New import for deleting chat history
   saveUserPrompt,
   getSavedPrompts,
-  deleteSavedPrompt
+  deleteSavedPrompt,
+  executeCypherQuery
 } from './toolkit/graph-builder';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 import { v4 as uuidv4 } from 'uuid';
@@ -484,8 +485,122 @@ adminRouter.post('/users/:userId/role', async (req, res) => {
   }
 });
 
+// Middleware to check if the requester is the user in the URL param or an admin
+const isSelfOrAdmin = (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+  const { sessionClaims } = req.auth;
+  const { userId } = req.params;
+
+  if (sessionClaims?.metadata.role === 'admin' || sessionClaims?.sub === userId) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Forbidden: You do not have permission to access this resource.' });
+};
+
+// Get courses a specific user is enrolled in
+adminRouter.get('/users/:userId/courses', isSelfOrAdmin, async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const result = await executeCypherQuery(
+            `MATCH (:User {id: $userId})-[:ENROLLED_IN]->(c:Course)
+             RETURN c ORDER BY c.createdAt DESC`,
+            { userId }
+        );
+        const courses = result.records.map(record => record.get('c').properties);
+        res.json(courses);
+    } catch (error: any) {
+        console.error(`Error fetching courses for user ${userId}:`, error.message, error.stack);
+        res.status(500).json({ message: 'Failed to fetch enrolled courses.', error: error.message });
+    }
+});
+
 // Mount the admin router under the /api path
 app.use('/api', adminRouter);
 
+// --- Course Management API ---
+const courseRouter = express.Router();
+
+// Middleware to check for admin or teacher roles
+const isTeacherOrAdmin = (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+  const { sessionClaims } = req.auth;
+  const role = sessionClaims?.metadata.role;
+  if (role !== 'admin' && role !== 'teacher') {
+    return res.status(403).json({ message: 'Forbidden: Access requires admin or teacher privileges.' });
+  }
+  next();
+};
+
+// All course routes require at least an authenticated user
+courseRouter.use(ClerkExpressRequireAuth());
+
+// Create a new course (only for teachers and admins)
+courseRouter.post('/courses', isTeacherOrAdmin, async (req, res) => {
+  const { title, description } = req.body;
+  const { userId: authorId } = req.auth;
+
+  if (!title || !description || !authorId) {
+    return res.status(400).json({ message: 'Title, description, and authorId are required.' });
+  }
+
+  const courseId = uuidv4();
+
+  try {
+    // We'll use the generic executeCypherQuery from graph-builder for this
+    await executeCypherQuery(
+      `CREATE (c:Course {
+        courseId: $courseId,
+        title: $title,
+        description: $description,
+        authorId: $authorId,
+        createdAt: datetime()
+      })`,
+      { courseId, title, description, authorId }
+    );
+    res.status(201).json({ courseId, title, description, authorId });
+  } catch (error: any) {
+    console.error('Error creating course:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to create course.', error: error.message });
+  }
+});
+
+// Get all courses (publicly accessible for a catalog)
+courseRouter.get('/courses', async (req, res) => {
+  try {
+    const result = await executeCypherQuery('MATCH (c:Course) RETURN c ORDER BY c.createdAt DESC');
+    const courses = result.records.map(record => record.get('c').properties);
+    res.json(courses);
+  } catch (error: any) {
+    console.error('Error fetching courses:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch courses.', error: error.message });
+  }
+});
+
+// Enroll in a course
+courseRouter.post('/courses/:courseId/enroll', async (req, res) => {
+    const { courseId } = req.params;
+    const { userId } = req.auth;
+
+    if (!courseId || !userId) {
+        return res.status(400).json({ message: 'Course ID and User ID are required.' });
+    }
+
+    try {
+        await executeCypherQuery(
+            `MERGE (user:User {id: $userId})
+             ON CREATE SET user.createdAt = datetime()
+             WITH user
+             MATCH (course:Course {courseId: $courseId})
+             MERGE (user)-[:ENROLLED_IN]->(course)`,
+            { userId, courseId }
+        );
+        res.status(200).json({ message: 'Successfully enrolled in course.' });
+    } catch (error: any)
+    {
+        console.error(`Error enrolling user ${userId} in course ${courseId}:`, error.message, error.stack);
+        res.status(500).json({ message: 'Failed to enroll in course.', error: error.message });
+    }
+});
+
+
+app.use('/api', courseRouter);
 
 export default app;

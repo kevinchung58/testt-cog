@@ -48,7 +48,9 @@ This setup was chosen for its modern features, rapid development capabilities, a
 
 The foundation is now stable and correctly implemented. Future development can focus on building out the specific features of the LMS.
 
-- **[ ] Flesh out Role Dashboards**: Add actual content and functionality to the Admin, Teacher, and Student dashboards.
+- **[ ] Adopt a UI Component Library (shadcn-ui)**:
+    -   **Why**: Radically accelerate frontend development by providing a rich set of pre-built, accessible, and customizable components.
+    -   **Plan**: Install `shadcn-ui` and its dependencies. Refactor an existing page (e.g., the admin dashboard) to use its components (Button, Table) as a proof-of-concept.
 - **[ ] Implement Role Management UI**: Create an admin-only UI where administrators can view and change the roles of other users.
 - **[ ] Course Creation & Management**:
     -   Allow Teachers to create and manage courses.
@@ -57,5 +59,28 @@ The foundation is now stable and correctly implemented. Future development can f
     -   Teachers should be able to add lessons (text, video, quizzes) to courses.
     -   Students should be able to view lesson content.
 - **[ ] Connect to Backend**: Integrate the `lms-frontend` with the `cognee-backend` by creating API clients to fetch and mutate data.
-- **[ ] Refine Permissions**: Add more granular permissions beyond the three basic roles if needed.
 - **[ ] Write Frontend Tests**: Add unit and integration tests for the new frontend application using Jest and React Testing Library/Playwright.
+
+---
+
+## Proposed Feature Roadmap (from Research)
+
+Based on analysis of successful open-source LMS projects, the following high-impact features are proposed to build this project into a robust, reusable foundation.
+
+- **[ ] Adopt a UI Component Library (shadcn-ui)**:
+    -   **Why**: Radically accelerate frontend development by providing a rich set of pre-built, accessible, and customizable components.
+    -   **Plan**: Install `shadcn-ui` and its dependencies. Refactor an existing page (e.g., the admin dashboard) to use its components (Button, Table) as a proof-of-concept.
+
+- **[ ] Rich Content Management (Video & File Uploads)**:
+    -   **Why**: A core requirement for any modern LMS. Teachers need to be able to upload video lectures and supplementary materials (e.g., PDFs).
+    -   **Plan**:
+        1.  **Backend**: Implement a secure API endpoint that generates a pre-signed URL for uploading files to a cloud storage provider (e.g., AWS S3).
+        2.  **Frontend**: In the "Create/Edit Course" flow, add a file input component that uses the pre-signed URL to upload files directly to cloud storage.
+        3.  **Video Processing**: For video, integrate a service like Mux or Cloudflare Stream to handle transcoding and adaptive bitrate streaming.
+
+- **[ ] Payment Gateway Integration (Stripe)**:
+    -   **Why**: Enables monetization of courses, a critical feature for many LMS use cases.
+    -   **Plan**:
+        1.  **Backend**: Create API endpoints to manage course pricing, create Stripe Checkout sessions, and handle webhooks for successful payments.
+        2.  **Frontend**: On the course catalog page, display prices and an "Enroll" button that redirects to the Stripe Checkout page.
+        3.  **Data Model**: Update the `(User)-[:ENROLLED_IN]->(Course)` relationship to include payment status.

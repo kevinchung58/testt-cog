@@ -420,4 +420,72 @@ if (require.main === module) {
   });
 }
 
+// Clerk SDK for backend authentication
+import { ClerkExpressRequireAuth, clerkClient, StrictAuthProp } from '@clerk/clerk-sdk-node';
+import { Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
+
+// Extend the Express Request type to include the auth property
+declare global {
+  namespace Express {
+    interface Request extends StrictAuthProp {}
+  }
+}
+
+// Define a custom middleware for checking for admin role
+const isAdmin = (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+  const { sessionClaims } = req.auth;
+
+  if (sessionClaims?.metadata.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden: Access requires admin privileges.' });
+  }
+  next();
+};
+
+// --- User Management API (Admin only) ---
+const adminRouter = express.Router();
+
+// Protect all routes in this router with Clerk authentication and admin role check
+adminRouter.use(ClerkExpressRequireAuth());
+adminRouter.use(isAdmin);
+
+adminRouter.get('/users', async (req, res) => {
+  try {
+    const { limit = 10, offset = 0 } = req.query;
+    const users = await clerkClient.users.getUserList({
+      limit: Number(limit),
+      offset: Number(offset),
+      orderBy: '-created_at'
+    });
+    res.json(users);
+  } catch (error: any) {
+    console.error('Error fetching user list:', error.message, error.stack);
+    res.status(500).json({ message: 'Failed to fetch user list.', error: error.message });
+  }
+});
+
+adminRouter.post('/users/:userId/role', async (req, res) => {
+  const { userId } = req.params;
+  const { role } = req.body;
+
+  if (!role || !['admin', 'teacher', 'student'].includes(role)) {
+    return res.status(400).json({ message: 'Invalid role specified. Must be one of: admin, teacher, student.' });
+  }
+
+  try {
+    const updatedUser = await clerkClient.users.updateUserMetadata(userId, {
+      publicMetadata: {
+        role: role
+      }
+    });
+    res.json(updatedUser);
+  } catch (error: any) {
+    console.error(`Error updating role for user ${userId}:`, error.message, error.stack);
+    res.status(500).json({ message: `Failed to update role for user ${userId}.`, error: error.message });
+  }
+});
+
+// Mount the admin router under the /api path
+app.use('/api', adminRouter);
+
+
 export default app;

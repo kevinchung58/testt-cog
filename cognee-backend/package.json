@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@browserbasehq/stagehand": "^1.14.0",
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@langchain/community": "^0.3.46",
     "@langchain/google-genai": "^0.2.12",
     "@types/multer": "^1.4.13",

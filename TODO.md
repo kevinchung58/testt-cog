@@ -1,5 +1,18 @@
 # Project TODO & Architectural Overview
 
+> [!WARNING]
+> **Critical Manual Step Required**
+>
+> Due to an unresolved environment issue that prevents writing files into the `/lms-frontend` directory, the Clerk Webhook Secret could not be automatically set.
+>
+> **Action Required:** You must manually add your Clerk Webhook Secret to the `lms-frontend/.env.local` file. It should look like this:
+>
+> `CLERK_WEBHOOK_SECRET=whsec_...your...secret...here...`
+>
+> This step is **required** for the automatic assignment of the "student" role to new users.
+
+---
+
 This document outlines the current status, architecture, and next steps for the project, focusing on the new Learning Management System (LMS) foundation.
 
 ## Architecture
@@ -20,7 +33,7 @@ This setup was chosen for its modern features, rapid development capabilities, a
 3.  Set up your environment variables by creating a `.env.local` file. Copy the contents of `.env.example` (if it exists) or add the following keys from your Clerk dashboard:
     - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
     - `CLERK_SECRET_KEY`
-    - `CLERK_WEBHOOK_SECRET`
+    - `CLERK_WEBHOOK_SECRET` (See critical manual step above)
 4.  Run the development server: `npm run dev`
 5.  The application will be available at `http://localhost:3000`.
 
@@ -33,7 +46,7 @@ This setup was chosen for its modern features, rapid development capabilities, a
 - [x] **Implemented Basic Auth Flow**: Created sign-in, sign-up, and protected dashboard pages.
 - [x] **Defined Core User Roles**: Set up a system to assign a default "student" role to new users via webhooks.
 - [x] **Implemented Role-Based Access Control (RBAC)**: Created a protected `/admin` route and demonstrated conditional UI rendering based on user roles.
-- [x/ **Created Placeholder Dashboards**: Built placeholder pages for Admin, Teacher, and Student roles to establish the app's structure.
+- [x] **Created Placeholder Dashboards**: Built placeholder pages for Admin, Teacher, and Student roles to establish the app's structure.
 
 ---
 

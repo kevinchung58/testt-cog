@@ -39,7 +39,8 @@ This setup was chosen for its modern features, rapid development capabilities, a
 - [x] **Integrated Clerk for Authentication**: Installed and configured the Clerk SDK for sign-in, sign-up, and route protection.
 - [x] **Implemented Webhook for Role Assignment**: Created an API endpoint (`/api/webhooks/clerk`) that automatically assigns a default "student" role to new users.
 - [x] **Implemented Foundational RBAC**: Created a protected `/admin` route that is only accessible to users with the "admin" role.
-- [x] **Established Dashboard Structure**: Created placeholder pages for different user experiences within the `(dashboard)` route group.
+- [x] **Established Dashboard Structure**: Created placeholder pages for Admin, Teacher, and Student roles.
+- [x] **Implemented Role-Based Routing**: The main `/dashboard` route now automatically redirects users to their specific role-based dashboard.
 
 ---
 
@@ -47,7 +48,7 @@ This setup was chosen for its modern features, rapid development capabilities, a
 
 The foundation is now stable and correctly implemented. Future development can focus on building out the specific features of the LMS.
 
-- **[ ] Flesh out Role Dashboards**: Add actual content and functionality to the Admin, Teacher, and Student dashboards. A placeholder for a student dashboard should be created.
+- **[ ] Flesh out Role Dashboards**: Add actual content and functionality to the Admin, Teacher, and Student dashboards.
 - **[ ] Implement Role Management UI**: Create an admin-only UI where administrators can view and change the roles of other users.
 - **[ ] Course Creation & Management**:
     -   Allow Teachers to create and manage courses.

@@ -3,14 +3,9 @@
 import { useAuth } from "@clerk/nextjs";
 import { useState, useEffect, useCallback } from "react";
 import Link from 'next/link';
+import { getMockEnrolledCourses, getMockLessons, getMockStudentProgress } from "@/mocks/handlers";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { CourseProgressCard } from "@/components/CourseProgressCard";
 import { useRouter } from "next/navigation";
 import { EnrollWithCodeForm } from "@/components/EnrollWithCodeForm";
 
@@ -20,42 +15,60 @@ interface Course {
   description: string;
 }
 
+interface CourseWithProgress extends Course {
+  progress: {
+    totalLessons: number;
+    completedLessons: number;
+  };
+}
+
 const StudentDashboardPage = () => {
-  const { getToken, userId } = useAuth();
+  const { userId } = useAuth();
   const router = useRouter();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesWithProgress, setCoursesWithProgress] = useState<CourseWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchEnrolledCourses = useCallback(async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const token = await getToken();
-      if (!token) throw new Error("Not authenticated");
+      // 1. Fetch enrolled courses
+      const enrolledCourses = await getMockEnrolledCourses(userId);
 
-      const response = await fetch(`/api/users/${userId}/courses/enrolled`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
+      // 2. For each course, fetch its lessons and the student's progress
+      const coursesData = await Promise.all(
+        enrolledCourses.map(async (course) => {
+          const [lessons, progress] = await Promise.all([
+            getMockLessons(course.courseId),
+            getMockStudentProgress(userId, course.courseId),
+          ]);
+          return {
+            ...course,
+            progress: {
+              totalLessons: lessons.length,
+              completedLessons: progress.completedLessons.length,
+            },
+          };
+        })
+      );
 
-      if (!response.ok) throw new Error("Failed to fetch enrolled courses");
-
-      const data = await response.json();
-      setCourses(data);
+      setCoursesWithProgress(coursesData);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [userId, getToken]);
+  }, [userId]);
 
   useEffect(() => {
-    fetchEnrolledCourses();
-  }, [fetchEnrolledCourses]);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const handleGoToCourse = (courseId: string) => {
-    router.push(`/student/courses/${courseId}`);
+    // This could navigate to a specific course page for the student
+    // For now, it's just a placeholder.
+    router.push(`/courses/${courseId}`);
   };
 
   return (
@@ -68,7 +81,7 @@ const StudentDashboardPage = () => {
       </div>
 
       <div className="mb-8">
-        <EnrollWithCodeForm onEnrollmentSuccess={fetchEnrolledCourses} />
+        <EnrollWithCodeForm onEnrollmentSuccess={fetchDashboardData} />
       </div>
 
       <div>
@@ -77,20 +90,15 @@ const StudentDashboardPage = () => {
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && (
             <>
-                {courses.length > 0 ? (
+                {coursesWithProgress.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {courses.map((course) => (
-                        <Card key={course.courseId} className="flex flex-col">
-                        <CardHeader>
-                            <CardTitle>{course.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                            <p className="text-gray-600">{course.description}</p>
-                        </CardContent>
-                        <CardFooter>
-                            <Button className="w-full" onClick={() => handleGoToCourse(course.courseId)}>Go to Course</Button>
-                        </CardFooter>
-                        </Card>
+                    {coursesWithProgress.map((course) => (
+                        <CourseProgressCard
+                            key={course.courseId}
+                            course={course}
+                            progress={course.progress}
+                            onGoToCourse={handleGoToCourse}
+                        />
                     ))}
                     </div>
                 ) : (

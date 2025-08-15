@@ -47,6 +47,56 @@ export const getMockUsers = async (): Promise<ClerkUser[]> => {
   });
 };
 
+// --- Student Progress Mocks ---
+
+interface StudentProgress {
+  completedLessons: string[];
+}
+
+// In-memory store for a user's progress, keyed by userId, then by courseId
+const mockStudentProgressData: Record<string, Record<string, StudentProgress>> = {
+  "user_student_mock_id": {
+    "course_123": {
+      completedLessons: ["lesson_abc"],
+    },
+  },
+};
+
+// Mock handler for GET /api/users/:userId/courses/:courseId/progress
+export const getMockStudentProgress = async (userId: string, courseId: string): Promise<StudentProgress> => {
+  console.log(`--- MOCK API CALLED: GET /api/users/${userId}/courses/${courseId}/progress ---`);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const progress = mockStudentProgressData[userId]?.[courseId] || { completedLessons: [] };
+      resolve(progress);
+    }, 300);
+  });
+};
+
+// --- Enrolled Courses Mock ---
+
+const mockEnrolledCourses = [
+  {
+    courseId: "course_123",
+    title: "Introduction to Mocking",
+    description: "A course about how to use mock data effectively.",
+  },
+  {
+    courseId: "course_456",
+    title: "Advanced Frontend Strategies",
+    description: "Learn about resilient frontend architecture.",
+  },
+];
+
+export const getMockEnrolledCourses = async (userId: string): Promise<any[]> => {
+  console.log(`--- MOCK API CALLED: GET /api/users/${userId}/courses/enrolled ---`);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve(mockEnrolledCourses);
+    }, 500);
+  });
+};
+
 // --- Course Management Mocks ---
 
 interface CourseDetails {

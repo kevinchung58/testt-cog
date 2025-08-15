@@ -30,6 +30,10 @@ The goal of this template is to provide a reusable starting point for projects t
     -   **Backend**: API routes under `/api/users` are protected by middleware that verifies the user's JWT and checks for the "admin" role.
 -   **Admin User Management UI**: A functional dashboard at `/admin` where administrators can view all users and change their roles (`admin`, `teacher`, `student`).
 -   **Role-Based Routing**: A central routing component on the main `/dashboard` page automatically redirects logged-in users to their respective dashboards (`/admin`, `/teacher`, or `/student`).
+-   **Functional Role Examples**:
+    -   **Admin**: Can view all users and manage their roles.
+    -   **Teacher**: Can create new courses and view the courses they have created.
+    -   **Student**: Can view a catalog of all courses, enroll in them, and see their enrolled courses on their dashboard.
 
 ## Getting Started
 

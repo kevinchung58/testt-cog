@@ -2,7 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
-import { getMockUsers, updateMockUserRole } from "@/mocks/handlers";
+import { getMockUsers, getMockPermissions, updateMockUserMetadata } from "@/mocks/handlers";
 import {
   Table,
   TableHeader,
@@ -11,6 +11,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import Link from "next/link";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-// Define types for the user data we expect from the backend
+// Updated type to include permissions
 interface ClerkUser {
   id: string;
   firstName: string | null;
@@ -28,49 +29,36 @@ interface ClerkUser {
   emailAddresses: { emailAddress: string }[];
   publicMetadata: {
     role?: "admin" | "teacher" | "student";
+    permissions?: string[];
   };
+}
+
+interface Permission {
+    id: string;
+    description: string;
 }
 
 const UserManagementTable = () => {
   const { getToken } = useAuth();
   const [users, setUsers] = useState<ClerkUser[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // State for the (future) modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<ClerkUser | null>(null);
+
   useEffect(() => {
-    const fetchUsers = async () => {
-      // Use mock data in development to avoid dependency on the broken backend
-      if (process.env.NODE_ENV === 'development') {
-        try {
-          const mockData = await getMockUsers();
-          setUsers(mockData);
-        } catch (err: any) {
-          setError(err.message);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Original production logic
+    const fetchData = async () => {
+      // We are forcing mock data usage for this exercise
       try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Not authenticated");
-        }
-
-        const response = await fetch("/api/users", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch users");
-        }
-
-        const data = await response.json();
-        setUsers(data);
+        const [usersData, permissionsData] = await Promise.all([
+            getMockUsers(),
+            getMockPermissions()
+        ]);
+        setUsers(usersData);
+        setPermissions(permissionsData);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -78,54 +66,31 @@ const UserManagementTable = () => {
       }
     };
 
-    fetchUsers();
-  }, [getToken]);
+    fetchData();
+  }, []);
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
-    // Use mock data in development
-    if (process.env.NODE_ENV === 'development') {
-      try {
-        await updateMockUserRole(userId, newRole);
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
-            user.id === userId
-              ? { ...user, publicMetadata: { ...user.publicMetadata, role: newRole as any } }
-              : user
-          )
-        );
-        alert("Mock role updated successfully!");
-      } catch (err: any) {
-        alert(`Error updating mock role: ${err.message}`);
-      }
-      return;
-    }
+  const handleOpenManageModal = (user: ClerkUser) => {
+    setSelectedUser(user);
+    setIsModalOpen(true);
+    // In a real app, the modal component would handle its own visibility.
+    // For now, we'll just log it.
+    console.log("Opening modal for user:", user.id);
+    alert(`Imagine a modal opening for ${user.firstName} with ${user.publicMetadata.permissions?.length || 0} permissions.`);
+  };
 
-    // Original production logic
+  // This function would be passed to the modal
+  const handleUpdateUser = async (userId: string, data: { role?: string, permissions?: string[] }) => {
     try {
-      const token = await getToken();
-      const response = await fetch(`/api/users/${userId}/role`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role: newRole }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update role");
-      }
-
+      const updatedUser = await updateMockUserMetadata(userId, data);
       setUsers(prevUsers =>
         prevUsers.map(user =>
-          user.id === userId
-            ? { ...user, publicMetadata: { ...user.publicMetadata, role: newRole as any } }
-            : user
+          user.id === userId ? updatedUser : user
         )
       );
-      alert("Role updated successfully!");
+      // In a real app, you'd show a toast notification
+      alert("User updated successfully!");
     } catch (err: any) {
-      alert(`Error updating role: ${err.message}`);
+      alert(`Error updating user: ${err.message}`);
     }
   };
 
@@ -133,43 +98,37 @@ const UserManagementTable = () => {
   if (error) return <p>Error: {error}</p>;
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {users.map(user => (
-          <TableRow key={user.id}>
-            <TableCell>{`${user.firstName || ""} ${user.lastName || ""}`.trim() || "N/A"}</TableCell>
-            <TableCell>{user.emailAddresses[0]?.emailAddress || "No email"}</TableCell>
-            <TableCell>
-              <Select
-                defaultValue={user.publicMetadata.role || "student"}
-                onValueChange={(newRole) => handleRoleChange(user.id, newRole)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </TableCell>
-            <TableCell className="text-right">
-              {/* The Select component now handles the update on change, so a button is less necessary */}
-              <span className="text-sm text-gray-500">Role updates automatically</span>
-            </TableCell>
+    <>
+      {/* The modal is being replaced by a dedicated page. This placeholder can be removed. */}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Permissions</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {users.map(user => (
+            <TableRow key={user.id}>
+              <TableCell>{`${user.firstName || ""} ${user.lastName || ""}`.trim() || "N/A"}</TableCell>
+              <TableCell>{user.emailAddresses[0]?.emailAddress || "No email"}</TableCell>
+              <TableCell>
+                <span className="font-semibold capitalize">{user.publicMetadata.role || "N/A"}</span>
+              </TableCell>
+              <TableCell>{user.publicMetadata.permissions?.length || 0} assigned</TableCell>
+              <TableCell className="text-right">
+                <Button asChild variant="outline">
+                    <Link href={`/admin/users/${user.id}/manage`}>Manage</Link>
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
   );
 };
 

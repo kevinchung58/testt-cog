@@ -1,6 +1,8 @@
 // This file will contain mock API handlers to be used in development.
 // This approach avoids the need for new dependencies, working around the broken npm environment.
 
+// --- Permissions & Roles Mocks ---
+
 // Define a type for the user data we expect, consistent with the component
 interface ClerkUser {
   id: string;
@@ -9,6 +11,7 @@ interface ClerkUser {
   emailAddresses: { emailAddress: string }[];
   publicMetadata: {
     role?: "admin" | "teacher" | "student";
+    permissions?: string[];
   };
 }
 
@@ -19,23 +22,45 @@ const mockUsers: ClerkUser[] = [
     firstName: "John",
     lastName: "Doe",
     emailAddresses: [{ emailAddress: "john.doe@example.com" }],
-    publicMetadata: { role: "admin" },
+    publicMetadata: { role: "admin", permissions: ["admin:full_access"] },
   },
   {
     id: "user_1aB2c3D4e5F6g7H8i9J0k1L2m",
     firstName: "Jane",
     lastName: "Smith",
     emailAddresses: [{ emailAddress: "jane.smith@example.com" }],
-    publicMetadata: { role: "teacher" },
+    publicMetadata: { role: "teacher", permissions: ["course:create", "course:edit_own"] },
   },
   {
     id: "user_9zY8x7W6v5U4t3S2r1Q0p9O8n",
     firstName: "Sam",
     lastName: "Wilson",
     emailAddresses: [{ emailAddress: "sam.wilson@example.com" }],
-    publicMetadata: { role: "student" },
+    publicMetadata: { role: "student", permissions: ["course:enroll", "course:view_enrolled"] },
   },
 ];
+
+const availablePermissions = [
+    { id: "admin:full_access", description: "Full administrative access to all system features." },
+    { id: "user:manage", description: "Can view, edit, and manage user roles and permissions." },
+    { id: "course:create", description: "Can create new courses." },
+    { id: "course:edit_own", description: "Can edit courses they have created." },
+    { id: "course:edit_all", description: "Can edit any course in the system." },
+    { id: "course:delete", description: "Can delete courses." },
+    { id: "course:enroll", description: "Can enroll in courses." },
+    { id: "course:view_enrolled", description: "Can view courses they are enrolled in." },
+];
+
+export const getMockPermissions = async (): Promise<typeof availablePermissions> => {
+    console.log("--- MOCK API CALLED: GET /api/permissions ---");
+    return new Promise(resolve => setTimeout(() => resolve(availablePermissions), 200));
+};
+
+export const getMockUserById = async (userId: string): Promise<ClerkUser | null> => {
+  console.log(`--- MOCK API CALLED: GET /api/users/${userId} ---`);
+  const user = mockUsers.find(u => u.id === userId) || null;
+  return new Promise(resolve => setTimeout(() => resolve(user), 150));
+};
 
 // Mock handler for GET /api/users
 export const getMockUsers = async (): Promise<ClerkUser[]> => {
@@ -182,9 +207,9 @@ export const createMockLesson = async (courseId: string, lessonData: { title: st
   });
 };
 
-// Mock handler for POST /api/users/:userId/role
-export const updateMockUserRole = async (userId: string, newRole: string): Promise<ClerkUser> => {
-  console.log(`--- MOCK API CALLED: POST /api/users/${userId}/role with role: ${newRole} ---`);
+// Mock handler for POST /api/users/:userId/metadata
+export const updateMockUserMetadata = async (userId: string, metadata: { role?: string; permissions?: string[] }): Promise<ClerkUser> => {
+  console.log(`--- MOCK API CALLED: POST /api/users/${userId}/metadata with data: ${JSON.stringify(metadata)} ---`);
 
   const userIndex = mockUsers.findIndex(user => user.id === userId);
   if (userIndex === -1) {
@@ -193,7 +218,10 @@ export const updateMockUserRole = async (userId: string, newRole: string): Promi
 
   const updatedUser = {
     ...mockUsers[userIndex],
-    publicMetadata: { role: newRole as "admin" | "teacher" | "student" },
+    publicMetadata: {
+        ...mockUsers[userIndex].publicMetadata,
+        ...metadata,
+    },
   };
 
   mockUsers[userIndex] = updatedUser;

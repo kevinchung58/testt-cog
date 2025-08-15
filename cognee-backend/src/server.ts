@@ -513,6 +513,23 @@ adminRouter.get('/users/:userId/courses', isSelfOrAdmin, async (req, res) => {
     }
 });
 
+// Get courses created by a specific user
+adminRouter.get('/users/:userId/courses/created', isSelfOrAdmin, async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const result = await executeCypherQuery(
+            `MATCH (c:Course {authorId: $userId})
+             RETURN c ORDER BY c.createdAt DESC`,
+            { userId }
+        );
+        const courses = result.records.map(record => record.get('c').properties);
+        res.json(courses);
+    } catch (error: any) {
+        console.error(`Error fetching created courses for user ${userId}:`, error.message, error.stack);
+        res.status(500).json({ message: 'Failed to fetch created courses.', error: error.message });
+    }
+});
+
 // Mount the admin router under the /api path
 app.use('/api', adminRouter);
 

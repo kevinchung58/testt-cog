@@ -27,20 +27,7 @@ async function getCourses(): Promise<Course[]> {
   }
 }
 
-// A separate client component for the enroll button to use the useAuth hook
-const EnrollButton = ({ courseId }: { courseId: string }) => {
-  // This component will be implemented later to handle enrollment logic.
-  // For now, it's a placeholder.
-  return (
-    <button
-      disabled
-      className="mt-4 px-4 py-2 bg-gray-400 text-white rounded cursor-not-allowed"
-      title="Enrollment functionality coming soon"
-    >
-      Enroll
-    </button>
-  );
-};
+import { EnrollButton } from "@/components/EnrollButton";
 
 
 const CoursesPage = async () => {

@@ -1,15 +1,9 @@
 # Project TODO & Architectural Overview
 
-> [!WARNING]
-> **Critical Manual Step Required**
+> [!NOTE]
+> **Project Status Update (As of August 2025)**
 >
-> Due to an unresolved environment issue that prevents writing files into the `/lms-frontend` directory, the Clerk Webhook Secret could not be automatically set.
->
-> **Action Required:** You must manually add your Clerk Webhook Secret to the `lms-frontend/.env.local` file. It should look like this:
->
-> `CLERK_WEBHOOK_SECRET=whsec_...your...secret...here...`
->
-> This step is **required** for the automatic assignment of the "student" role to new users.
+> This project has undergone a significant stabilization effort. The `cognee-backend` test suite was repaired from a non-functional state to 100% passing. Foundational features for the `lms-frontend` (Role-Based Access Control) were discovered to be missing and have now been implemented. The documentation, including this `TODO.md`, has been updated to reflect the current, accurate state of the project.
 
 ---
 
@@ -17,10 +11,10 @@ This document outlines the current status, architecture, and next steps for the 
 
 ## Architecture
 
-A new frontend application has been created in the `/lms-frontend` directory. This serves as the foundation for a modern, role-based Learning Management System and is intended to be the template for future frontend projects.
+The primary frontend application is located in the `cognee-backend/lms-frontend/` directory. This serves as the foundation for a modern, role-based Learning Management System.
 
 - **Framework**: [Next.js](https://nextjs.org/) (with App Router)
-- **Authentication**: [Clerk](https://clerk.com/)
+- **Authentication & Roles**: [Clerk](https://clerk.com/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **Language**: TypeScript
 
@@ -28,12 +22,12 @@ This setup was chosen for its modern features, rapid development capabilities, a
 
 ## How to Run
 
-1.  Navigate to the new frontend directory: `cd lms-frontend`
+1.  Navigate to the correct frontend directory: `cd cognee-backend/lms-frontend`
 2.  Install dependencies: `npm install`
-3.  Set up your environment variables by creating a `.env.local` file. Copy the contents of `.env.example` (if it exists) or add the following keys from your Clerk dashboard:
+3.  Set up your environment variables by creating a `.env.local` file. You will need the following keys from your Clerk dashboard:
     - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
     - `CLERK_SECRET_KEY`
-    - `CLERK_WEBHOOK_SECRET` (See critical manual step above)
+    - `CLERK_WEBHOOK_SECRET` (for automatic role assignment)
 4.  Run the development server: `npm run dev`
 5.  The application will be available at `http://localhost:3000`.
 
@@ -41,20 +35,19 @@ This setup was chosen for its modern features, rapid development capabilities, a
 
 ## Completed Tasks (LMS Foundation)
 
-- [x] **Initialized New Next.js Project**: Created the `lms-frontend` application as a modern foundation.
-- [x] **Integrated Clerk for Authentication**: Installed and configured the Clerk SDK.
-- [x] **Implemented Basic Auth Flow**: Created sign-in, sign-up, and protected dashboard pages.
-- [x] **Defined Core User Roles**: Set up a system to assign a default "student" role to new users via webhooks.
-- [x] **Implemented Role-Based Access Control (RBAC)**: Created a protected `/admin` route and demonstrated conditional UI rendering based on user roles.
-- [x] **Created Placeholder Dashboards**: Built placeholder pages for Admin, Teacher, and Student roles to establish the app's structure.
+- [x] **Initialized New Next.js Project**: Created the `lms-frontend` application.
+- [x] **Integrated Clerk for Authentication**: Installed and configured the Clerk SDK for sign-in, sign-up, and route protection.
+- [x] **Implemented Webhook for Role Assignment**: Created an API endpoint (`/api/webhooks/clerk`) that automatically assigns a default "student" role to new users.
+- [x] **Implemented Foundational RBAC**: Created a protected `/admin` route that is only accessible to users with the "admin" role.
+- [x] **Established Dashboard Structure**: Created placeholder pages for different user experiences within the `(dashboard)` route group.
 
 ---
 
 ## Next Steps & Future Work
 
-The foundation is now in place. Future development should focus on building out the specific features of the LMS.
+The foundation is now stable and correctly implemented. Future development can focus on building out the specific features of the LMS.
 
-- **[ ] Flesh out Role Dashboards**: Add actual content and functionality to the Admin, Teacher, and Student dashboards.
+- **[ ] Flesh out Role Dashboards**: Add actual content and functionality to the Admin, Teacher, and Student dashboards. A placeholder for a student dashboard should be created.
 - **[ ] Implement Role Management UI**: Create an admin-only UI where administrators can view and change the roles of other users.
 - **[ ] Course Creation & Management**:
     -   Allow Teachers to create and manage courses.

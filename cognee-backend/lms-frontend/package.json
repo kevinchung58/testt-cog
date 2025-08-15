@@ -13,7 +13,7 @@
     "next": "15.4.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "svix": "^1.71.0"
+    "svix": "^1.73.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
